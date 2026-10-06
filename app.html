@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iron Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #09090b; color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .scrollbar-thin::-webkit-scrollbar { height: 4px; width: 4px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+  <!-- Top Navigation / Header -->
+  <header class="border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur sticky top-0 z-30 px-4 py-2.5">
+    <div class="max-w-5xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <span class="text-xs font-mono font-bold tracking-widest text-zinc-100 uppercase">IRON</span>
+        <span class="text-zinc-600">/</span>
+        <span id="set-count-badge" class="text-[11px] font-mono text-zinc-400"></span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-duplicate" class="px-2.5 py-1 text-xs font-mono text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 rounded transition active:scale-95">
+          Duplicate & Progress
+        </button>
+        <button id="btn-export" class="px-2.5 py-1 text-xs font-mono text-zinc-400 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded transition">
+          Export CSV
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Notification Banner -->
+  <div id="notification-bar" class="hidden bg-zinc-900 border-b border-zinc-800 text-zinc-300 px-4 py-1.5 text-center text-xs font-mono sticky top-10 z-20"></div>
+
+  <!-- Mode Switcher & Filter -->
+  <div class="max-w-5xl w-full mx-auto px-4 pt-3 flex items-center justify-between gap-2">
+    <div class="flex bg-zinc-900/80 p-0.5 rounded border border-zinc-800 text-xs font-mono">
+      <button id="tab-gym" class="px-2.5 py-1 rounded text-zinc-100 bg-zinc-800 transition">Gym Mode</button>
+      <button id="tab-sheet" class="px-2.5 py-1 rounded text-zinc-400 hover:text-zinc-200 transition">Master Table</button>
+    </div>
+    <div id="search-container" class="hidden">
+      <input type="text" id="search-input" placeholder="Filter exercise..." class="bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-200 rounded px-2.5 py-1 w-40 md:w-48 focus:outline-none focus:border-zinc-700">
+    </div>
+  </div>
+
+  <!-- Main View Container -->
+  <main class="max-w-5xl w-full mx-auto p-4 flex-1">
+    <!-- Gym View -->
+    <div id="view-gym">
+      <div id="date-selector" class="flex gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-thin"></div>
+      <div id="gym-exercise-list" class="space-y-3"></div>
+    </div>
+
+    <!-- Spreadsheet View -->
+    <div id="view-sheet" class="hidden bg-zinc-950 border border-zinc-800/80 rounded overflow-hidden">
+      <div class="overflow-x-auto max-h-[78vh]">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-zinc-900/90 sticky top-0 text-zinc-400 font-mono text-[11px] tracking-wider border-b border-zinc-800 z-10">
+            <tr>
+              <th class="py-2 px-3 font-normal">Date</th>
+              <th class="py-2 px-3 font-normal">Workout</th>
+              <th class="py-2 px-3 font-normal">Exercise</th>
+              <th class="py-2 px-3 text-center font-normal">Set</th>
+              <th class="py-2 px-3 text-right font-normal">Weight</th>
+              <th class="py-2 px-3 text-center font-normal">Target</th>
+              <th class="py-2 px-3 text-center font-normal">Actual</th>
+              <th class="py-2 px-3 font-normal">Notes</th>
+            </tr>
+          </thead>
+          <tbody id="sheet-table-body" class="divide-y divide-zinc-900 font-mono text-[11px]"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const INITIAL_DATA = [{"id": "row_0", "date": "2026-10-09", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 25.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_1", "date": "2026-10-09", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 25.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_2", "date": "2026-10-09", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 25.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_3", "date": "2026-10-09", "workout": "Pull", "exercise": "Chest-Supported Row", "set": 1, "weight": 115.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_4", "date": "2026-10-09", "workout": "Pull", "exercise": "Chest Supported Row", "set": 2, "weight": 115.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_5", "date": "2026-10-09", "workout": "Pull", "exercise": "Chest Supported Row", "set": 3, "weight": 115.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_6", "date": "2026-10-09", "workout": "Pull", "exercise": "Face Pulls", "set": 1, "weight": 100.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_7", "date": "2026-10-09", "workout": "Pull", "exercise": "Face Pulls", "set": 2, "weight": 120.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_8", "date": "2026-10-09", "workout": "Pull", "exercise": "Face Pulls", "set": 3, "weight": 120.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_9", "date": "2026-10-09", "workout": "Pull", "exercise": "Incline DB Curls", "set": 1, "weight": 35.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_10", "date": "2026-10-09", "workout": "Pull", "exercise": "Incline DB Curls", "set": 2, "weight": 35.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_11", "date": "2026-10-09", "workout": "Pull", "exercise": "Incline DB Curls", "set": 3, "weight": 35.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_12", "date": "2026-10-08", "workout": "Push", "exercise": "Incline Bench Press", "set": 1, "weight": 150.0, "targetReps": 10, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_13", "date": "2026-10-08", "workout": "Push", "exercise": "Incline Bench Press", "set": 2, "weight": 150.0, "targetReps": 10, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_14", "date": "2026-10-08", "workout": "Push", "exercise": "Incline Bench Press", "set": 3, "weight": 150.0, "targetReps": 10, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_15", "date": "2026-10-08", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 115.0, "targetReps": 8, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_16", "date": "2026-10-08", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 115.0, "targetReps": 8, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_17", "date": "2026-10-08", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 115.0, "targetReps": 8, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_18", "date": "2026-10-08", "workout": "Push", "exercise": "Tricep Pulldown", "set": 1, "weight": 55.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_19", "date": "2026-10-08", "workout": "Push", "exercise": "Tricep Pulldown", "set": 2, "weight": 55.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_20", "date": "2026-10-08", "workout": "Push", "exercise": "Tricep Pulldown", "set": 3, "weight": 55.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_21", "date": "2026-10-08", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 1, "weight": 120.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_22", "date": "2026-10-08", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 2, "weight": 120.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_23", "date": "2026-10-08", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 3, "weight": 120.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_24", "date": "2026-10-07", "workout": "Legs", "exercise": "Zercher Squats", "set": 1, "weight": 185.0, "targetReps": 8, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_25", "date": "2026-10-07", "workout": "Legs", "exercise": "Zercher Squats", "set": 2, "weight": 185.0, "targetReps": 8, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_26", "date": "2026-10-07", "workout": "Legs", "exercise": "Zercher Squats", "set": 3, "weight": 185.0, "targetReps": 8, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_27", "date": "2026-10-07", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 1, "weight": 150.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_28", "date": "2026-10-07", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 2, "weight": 150.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_29", "date": "2026-10-07", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 3, "weight": 150.0, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_30", "date": "2026-10-07", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 1, "weight": 175.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": true}, {"id": "row_31", "date": "2026-10-07", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 2, "weight": 175.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": true}, {"id": "row_32", "date": "2026-10-07", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 3, "weight": 175.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": true}, {"id": "row_33", "date": "2026-10-07", "workout": "Legs", "exercise": "Leg Extension", "set": 1, "weight": 182.5, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_34", "date": "2026-10-07", "workout": "Legs", "exercise": "Leg Extension", "set": 2, "weight": 182.5, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_35", "date": "2026-10-07", "workout": "Legs", "exercise": "Leg Extension", "set": 3, "weight": 182.5, "targetReps": 12, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_36", "date": "2026-10-05", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 25.0, "targetReps": 14, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_37", "date": "2026-10-05", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 25.0, "targetReps": 11, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_38", "date": "2026-10-05", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 25.0, "targetReps": 14, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_39", "date": "2026-10-05", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 25.0, "targetReps": 10, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_40", "date": "2026-10-05", "workout": "Pull", "exercise": "BW Rows", "set": 1, "weight": 0.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": true}, {"id": "row_41", "date": "2026-10-05", "workout": "Pull", "exercise": "BW Rows", "set": 2, "weight": 0.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": true}, {"id": "row_42", "date": "2026-10-05", "workout": "Pull", "exercise": "BW Rows", "set": 3, "weight": 0.0, "targetReps": 15, "actualReps": null, "notes": "", "isIncreased": true}, {"id": "row_43", "date": "2026-10-05", "workout": "Pull", "exercise": "Plate Curls", "set": 1, "weight": 45.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_44", "date": "2026-10-05", "workout": "Pull", "exercise": "Plate Curls", "set": 2, "weight": 45.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_45", "date": "2026-10-05", "workout": "Pull", "exercise": "Plate Curls", "set": 3, "weight": 45.0, "targetReps": 20, "actualReps": null, "notes": "", "isIncreased": false}, {"id": "row_46", "date": "2026-10-06", "workout": "Push", "exercise": "Weighted Dips", "set": 1, "weight": 55.0, "targetReps": 8, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_47", "date": "2026-10-06", "workout": "Push", "exercise": "Weighted Dips", "set": 2, "weight": 55.0, "targetReps": 8, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_48", "date": "2026-10-06", "workout": "Push", "exercise": "Weighted Dips", "set": 3, "weight": 55.0, "targetReps": 8, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_49", "date": "2026-10-06", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 95.0, "targetReps": 20, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_50", "date": "2026-10-06", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 95.0, "targetReps": 20, "actualReps": 14, "notes": "", "isIncreased": true}, {"id": "row_51", "date": "2026-10-06", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 95.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_52", "date": "2026-10-06", "workout": "Push", "exercise": "Lateral Raises", "set": 1, "weight": 25.0, "targetReps": 15, "actualReps": 15, "notes": "", "isIncreased": true}, {"id": "row_53", "date": "2026-10-06", "workout": "Push", "exercise": "Lateral Raises", "set": 2, "weight": 25.0, "targetReps": 15, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_54", "date": "2026-10-06", "workout": "Push", "exercise": "Lateral Raises", "set": 3, "weight": 25.0, "targetReps": 15, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_55", "date": "2026-10-06", "workout": "Push", "exercise": "Tricep Pulldown", "set": 1, "weight": 60.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_56", "date": "2026-10-06", "workout": "Push", "exercise": "Tricep Pulldown", "set": 2, "weight": 60.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_57", "date": "2026-10-06", "workout": "Push", "exercise": "Tricep Pulldown", "set": 3, "weight": 60.0, "targetReps": 20, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_58", "date": "2026-10-06", "workout": "Push", "exercise": "Chest Press", "set": 1, "weight": 180.0, "targetReps": 8, "actualReps": 0, "notes": "", "isIncreased": false}, {"id": "row_59", "date": "2026-10-06", "workout": "Push", "exercise": "Chest Press", "set": 2, "weight": 180.0, "targetReps": 8, "actualReps": 0, "notes": "", "isIncreased": false}, {"id": "row_60", "date": "2026-10-06", "workout": "Push", "exercise": "Chest Press", "set": 3, "weight": 130.0, "targetReps": 8, "actualReps": 0, "notes": "", "isIncreased": false}, {"id": "row_61", "date": "2026-10-06", "workout": "Push", "exercise": "Chest Press", "set": 4, "weight": 90.0, "targetReps": 8, "actualReps": 0, "notes": "", "isIncreased": false}, {"id": "row_62", "date": "2026-10-02", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 55.0, "targetReps": 6, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_63", "date": "2026-10-02", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 55.0, "targetReps": 6, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_64", "date": "2026-10-02", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 55.0, "targetReps": 6, "actualReps": 6, "notes": "", "isIncreased": true}, {"id": "row_65", "date": "2026-10-02", "workout": "Pull", "exercise": "Chest-Supported Row", "set": 1, "weight": 115.0, "targetReps": 12, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_66", "date": "2026-10-02", "workout": "Pull", "exercise": "Chest Supported Row", "set": 2, "weight": 115.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_67", "date": "2026-10-02", "workout": "Pull", "exercise": "Chest Supported Row", "set": 3, "weight": 115.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_68", "date": "2026-10-02", "workout": "Pull", "exercise": "Face Pulls", "set": 1, "weight": 100.0, "targetReps": 20, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_69", "date": "2026-10-02", "workout": "Pull", "exercise": "Face Pulls", "set": 2, "weight": 120.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_70", "date": "2026-10-02", "workout": "Pull", "exercise": "Face Pulls", "set": 3, "weight": 120.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_71", "date": "2026-10-02", "workout": "Pull", "exercise": "Incline DB Curls", "set": 1, "weight": 35.0, "targetReps": 12, "actualReps": 10, "notes": "10 but a tough 10", "isIncreased": true}, {"id": "row_72", "date": "2026-10-02", "workout": "Pull", "exercise": "Incline DB Curls", "set": 2, "weight": 35.0, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_73", "date": "2026-10-02", "workout": "Pull", "exercise": "Incline DB Curls", "set": 3, "weight": 35.0, "targetReps": 12, "actualReps": 9, "notes": "", "isIncreased": true}, {"id": "row_74", "date": "2026-10-01", "workout": "Push", "exercise": "Incline Bench Press", "set": 1, "weight": 150.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": true}, {"id": "row_75", "date": "2026-10-01", "workout": "Push", "exercise": "Incline Bench Press", "set": 2, "weight": 150.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": true}, {"id": "row_76", "date": "2026-10-01", "workout": "Push", "exercise": "Incline Bench Press", "set": 3, "weight": 150.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": true}, {"id": "row_77", "date": "2026-10-01", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 115.0, "targetReps": 8, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_78", "date": "2026-10-01", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 115.0, "targetReps": 8, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_79", "date": "2026-10-01", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 105.0, "targetReps": 8, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_80", "date": "2026-10-01", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 1, "weight": 120.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_81", "date": "2026-10-01", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 2, "weight": 120.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_82", "date": "2026-10-01", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 3, "weight": 120.0, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": true}, {"id": "row_83", "date": "2026-09-30", "workout": "Legs", "exercise": "Zercher Squats", "set": 1, "weight": 185.0, "targetReps": 8, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_84", "date": "2026-09-30", "workout": "Legs", "exercise": "Zercher Squats", "set": 2, "weight": 185.0, "targetReps": 8, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_85", "date": "2026-09-30", "workout": "Legs", "exercise": "Zercher Squats", "set": 3, "weight": 185.0, "targetReps": 8, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_86", "date": "2026-09-30", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 1, "weight": 150.0, "targetReps": 12, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_87", "date": "2026-09-30", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 2, "weight": 150.0, "targetReps": 12, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_88", "date": "2026-09-30", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 3, "weight": 150.0, "targetReps": 12, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_89", "date": "2026-09-30", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 1, "weight": 160.0, "targetReps": 20, "actualReps": 0, "notes": "", "isIncreased": false}, {"id": "row_90", "date": "2026-09-30", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 2, "weight": 160.0, "targetReps": 20, "actualReps": 0, "notes": "", "isIncreased": false}, {"id": "row_91", "date": "2026-09-30", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 3, "weight": 160.0, "targetReps": 20, "actualReps": 0, "notes": "", "isIncreased": false}, {"id": "row_92", "date": "2026-09-30", "workout": "Legs", "exercise": "Leg Extension", "set": 1, "weight": 182.5, "targetReps": 12, "actualReps": 6, "notes": "Felt amazing and effortless. Deja h\u00e2te de refaire ", "isIncreased": true}, {"id": "row_93", "date": "2026-09-30", "workout": "Legs", "exercise": "Leg Extension", "set": 2, "weight": 182.5, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": true}, {"id": "row_94", "date": "2026-09-30", "workout": "Legs", "exercise": "Leg Extension", "set": 3, "weight": 182.5, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": true}, {"id": "row_95", "date": "2026-09-29", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 50.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_96", "date": "2026-09-29", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 50.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_97", "date": "2026-09-29", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 50.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_98", "date": "2026-09-29", "workout": "Pull", "exercise": "Barbell Rows", "set": 1, "weight": 165.0, "targetReps": 10, "actualReps": 12, "notes": "Go slow keep 12 reps and focus on full ROM. Each rep is a set s/o Jeff", "isIncreased": true}, {"id": "row_99", "date": "2026-09-29", "workout": "Pull", "exercise": "Barbell Rows", "set": 2, "weight": 165.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_100", "date": "2026-09-29", "workout": "Pull", "exercise": "Barbell Rows", "set": 3, "weight": 165.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_101", "date": "2026-09-29", "workout": "Pull", "exercise": "Face Pulls", "set": 1, "weight": 120.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_102", "date": "2026-09-29", "workout": "Pull", "exercise": "Face Pulls", "set": 2, "weight": 120.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_103", "date": "2026-09-29", "workout": "Pull", "exercise": "Face Pulls", "set": 3, "weight": 120.0, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_104", "date": "2026-09-29", "workout": "Pull", "exercise": "Cable Curls", "set": 1, "weight": 35.0, "targetReps": 12, "actualReps": 8, "notes": "Felt very good finally way smoother", "isIncreased": true}, {"id": "row_105", "date": "2026-09-29", "workout": "Pull", "exercise": "Cable Curls", "set": 2, "weight": 35.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_106", "date": "2026-09-29", "workout": "Pull", "exercise": "Cable Curls", "set": 3, "weight": 35.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_107", "date": "2026-09-28", "workout": "Push", "exercise": "Weighted Dips", "set": 1, "weight": 45.0, "targetReps": 8, "actualReps": 12, "notes": "Way more energy was very smooth", "isIncreased": false}, {"id": "row_108", "date": "2026-09-28", "workout": "Push", "exercise": "Weighted Dips", "set": 2, "weight": 45.0, "targetReps": 8, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_109", "date": "2026-09-28", "workout": "Push", "exercise": "Weighted Dips", "set": 3, "weight": 45.0, "targetReps": 8, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_110", "date": "2026-09-28", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "No pain even after full OHP sets", "isIncreased": false}, {"id": "row_111", "date": "2026-09-28", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_112", "date": "2026-09-28", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_113", "date": "2026-09-28", "workout": "Push", "exercise": "Lateral Raises", "set": 1, "weight": 22.5, "targetReps": 15, "actualReps": 20, "notes": "", "isIncreased": false}, {"id": "row_114", "date": "2026-09-28", "workout": "Push", "exercise": "Lateral Raises", "set": 2, "weight": 22.5, "targetReps": 15, "actualReps": 20, "notes": "", "isIncreased": false}, {"id": "row_115", "date": "2026-09-28", "workout": "Push", "exercise": "Lateral Raises", "set": 3, "weight": 22.5, "targetReps": 15, "actualReps": 20, "notes": "", "isIncreased": false}, {"id": "row_116", "date": "2026-09-28", "workout": "Push", "exercise": "Tricep Pulldown", "set": 1, "weight": 50.0, "targetReps": 20, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_117", "date": "2026-09-28", "workout": "Push", "exercise": "Tricep Pulldown", "set": 2, "weight": 50.0, "targetReps": 20, "actualReps": 7, "notes": "", "isIncreased": false}, {"id": "row_118", "date": "2026-09-28", "workout": "Push", "exercise": "Tricep Pulldown", "set": 3, "weight": 50.0, "targetReps": 20, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_119", "date": "2026-09-28", "workout": "Push", "exercise": "Chest Press", "set": 1, "weight": 180.0, "targetReps": 8, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_120", "date": "2026-09-28", "workout": "Push", "exercise": "Chest Press", "set": 2, "weight": 180.0, "targetReps": 8, "actualReps": 6, "notes": "Felt way better than reaching for 10. Take time getting used to the weight for 6-8 range before moving up", "isIncreased": false}, {"id": "row_121", "date": "2026-09-28", "workout": "Push", "exercise": "Chest Press", "set": 3, "weight": 130.0, "targetReps": 8, "actualReps": 6, "notes": "Less rest needed, feel like my reps are way stronger", "isIncreased": false}, {"id": "row_122", "date": "2026-09-28", "workout": "Push", "exercise": "Chest Press", "set": 4, "weight": 90.0, "targetReps": 8, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_123", "date": "2026-09-25", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 45.0, "targetReps": 6, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_124", "date": "2026-09-25", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 45.0, "targetReps": 6, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_125", "date": "2026-09-25", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 45.0, "targetReps": 6, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_126", "date": "2026-09-25", "workout": "Pull", "exercise": "Barbell Rows", "set": 1, "weight": 147.5, "targetReps": 12, "actualReps": 16, "notes": "", "isIncreased": true}, {"id": "row_127", "date": "2026-09-25", "workout": "Pull", "exercise": "Barbell Rows", "set": 2, "weight": 147.5, "targetReps": 12, "actualReps": 16, "notes": "", "isIncreased": true}, {"id": "row_128", "date": "2026-09-25", "workout": "Pull", "exercise": "Barbell Rows", "set": 3, "weight": 147.5, "targetReps": 12, "actualReps": 16, "notes": "", "isIncreased": true}, {"id": "row_129", "date": "2026-09-25", "workout": "Pull", "exercise": "Face Pulls", "set": 1, "weight": 50.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_130", "date": "2026-09-25", "workout": "Pull", "exercise": "Face Pulls", "set": 2, "weight": 50.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_131", "date": "2026-09-25", "workout": "Pull", "exercise": "Face Pulls", "set": 3, "weight": 50.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_132", "date": "2026-09-25", "workout": "Pull", "exercise": "Incline DB Curls", "set": 1, "weight": 32.5, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_133", "date": "2026-09-25", "workout": "Pull", "exercise": "Incline DB Curls", "set": 2, "weight": 32.5, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_134", "date": "2026-09-25", "workout": "Pull", "exercise": "Incline DB Curls", "set": 3, "weight": 32.5, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_135", "date": "2026-09-24", "workout": "Push", "exercise": "Incline Bench Press", "set": 1, "weight": 135.0, "targetReps": 10, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_136", "date": "2026-09-24", "workout": "Push", "exercise": "Incline Bench Press", "set": 2, "weight": 135.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_137", "date": "2026-09-24", "workout": "Push", "exercise": "Incline Bench Press", "set": 3, "weight": 135.0, "targetReps": 10, "actualReps": 4, "notes": "", "isIncreased": false}, {"id": "row_138", "date": "2026-09-24", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 95.0, "targetReps": 8, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_139", "date": "2026-09-24", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 95.0, "targetReps": 8, "actualReps": 12, "notes": "Sharp pain right shoulder, stopped after 2nd set ", "isIncreased": false}, {"id": "row_140", "date": "2026-09-24", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 95.0, "targetReps": 8, "actualReps": 20, "notes": "", "isIncreased": false}, {"id": "row_141", "date": "2026-09-24", "workout": "Push", "exercise": "Pec Deck", "set": 1, "weight": 180.0, "targetReps": 8, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_142", "date": "2026-09-24", "workout": "Push", "exercise": "Pec Deck", "set": 2, "weight": 180.0, "targetReps": 8, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_143", "date": "2026-09-24", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 1, "weight": 220.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_144", "date": "2026-09-24", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 2, "weight": 220.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_145", "date": "2026-09-24", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 3, "weight": 220.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_146", "date": "2026-09-23", "workout": "Legs", "exercise": "Zercher Squats", "set": 1, "weight": 155.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_147", "date": "2026-09-23", "workout": "Legs", "exercise": "Zercher Squats", "set": 2, "weight": 155.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_148", "date": "2026-09-23", "workout": "Legs", "exercise": "Zercher Squats", "set": 3, "weight": 155.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_149", "date": "2026-09-23", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 1, "weight": 135.0, "targetReps": 12, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_150", "date": "2026-09-23", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 2, "weight": 135.0, "targetReps": 12, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_151", "date": "2026-09-23", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 3, "weight": 135.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": true}, {"id": "row_152", "date": "2026-09-23", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 1, "weight": 160.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_153", "date": "2026-09-23", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 2, "weight": 160.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_154", "date": "2026-09-23", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 3, "weight": 160.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_155", "date": "2026-09-23", "workout": "Legs", "exercise": "Leg Extension", "set": 1, "weight": 165.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_156", "date": "2026-09-23", "workout": "Legs", "exercise": "Leg Extension", "set": 2, "weight": 165.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_157", "date": "2026-09-23", "workout": "Legs", "exercise": "Leg Extension", "set": 3, "weight": 165.0, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": true}, {"id": "row_158", "date": "2026-09-22", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 25.0, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_159", "date": "2026-09-22", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 25.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_160", "date": "2026-09-22", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 25.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_161", "date": "2026-09-22", "workout": "Pull", "exercise": "Barbell Rows", "set": 1, "weight": 147.5, "targetReps": 10, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_162", "date": "2026-09-22", "workout": "Pull", "exercise": "Barbell Rows", "set": 2, "weight": 147.5, "targetReps": 10, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_163", "date": "2026-09-22", "workout": "Pull", "exercise": "Barbell Rows", "set": 3, "weight": 147.5, "targetReps": 10, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_164", "date": "2026-09-22", "workout": "Pull", "exercise": "Face Pulls", "set": 1, "weight": 100.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_165", "date": "2026-09-22", "workout": "Pull", "exercise": "Face Pulls", "set": 2, "weight": 100.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_166", "date": "2026-09-22", "workout": "Pull", "exercise": "Face Pulls", "set": 3, "weight": 100.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": true}, {"id": "row_167", "date": "2026-09-22", "workout": "Pull", "exercise": "Cable Curls", "set": 1, "weight": 32.5, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": true}, {"id": "row_168", "date": "2026-09-22", "workout": "Pull", "exercise": "Cable Curls", "set": 2, "weight": 32.5, "targetReps": 12, "actualReps": 7, "notes": "", "isIncreased": true}, {"id": "row_169", "date": "2026-09-22", "workout": "Pull", "exercise": "Cable Curls", "set": 3, "weight": 32.5, "targetReps": 12, "actualReps": 4, "notes": "", "isIncreased": true}, {"id": "row_170", "date": "2026-09-21", "workout": "Push", "exercise": "Weighted Dips", "set": 1, "weight": 90.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_171", "date": "2026-09-21", "workout": "Push", "exercise": "Weighted Dips", "set": 2, "weight": 90.0, "targetReps": 10, "actualReps": 11, "notes": "", "isIncreased": false}, {"id": "row_172", "date": "2026-09-21", "workout": "Push", "exercise": "Weighted Dips", "set": 3, "weight": 90.0, "targetReps": 10, "actualReps": 7, "notes": "", "isIncreased": false}, {"id": "row_173", "date": "2026-09-21", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_174", "date": "2026-09-21", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_175", "date": "2026-09-21", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_176", "date": "2026-09-21", "workout": "Push", "exercise": "Lateral Raises", "set": 1, "weight": 22.5, "targetReps": 15, "actualReps": 20, "notes": "", "isIncreased": true}, {"id": "row_177", "date": "2026-09-21", "workout": "Push", "exercise": "Lateral Raises", "set": 2, "weight": 22.5, "targetReps": 15, "actualReps": 18, "notes": "", "isIncreased": true}, {"id": "row_178", "date": "2026-09-21", "workout": "Push", "exercise": "Lateral Raises", "set": 3, "weight": 22.5, "targetReps": 15, "actualReps": 14, "notes": "", "isIncreased": true}, {"id": "row_179", "date": "2026-09-21", "workout": "Push", "exercise": "Tricep Pulldown", "set": 1, "weight": 50.0, "targetReps": 20, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_180", "date": "2026-09-21", "workout": "Push", "exercise": "Tricep Pulldown", "set": 2, "weight": 50.0, "targetReps": 20, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_181", "date": "2026-09-21", "workout": "Push", "exercise": "Tricep Pulldown", "set": 3, "weight": 50.0, "targetReps": 20, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_182", "date": "2026-09-21", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 1, "weight": 50.0, "targetReps": 20, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_183", "date": "2026-09-21", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 2, "weight": 50.0, "targetReps": 20, "actualReps": 5, "notes": "", "isIncreased": false}, {"id": "row_184", "date": "2026-09-21", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 3, "weight": 50.0, "targetReps": 20, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_185", "date": "2026-09-18", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 45.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_186", "date": "2026-09-18", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 45.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_187", "date": "2026-09-18", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 45.0, "targetReps": 10, "actualReps": 12, "notes": "Increase +10", "isIncreased": false}, {"id": "row_188", "date": "2026-09-18", "workout": "Pull", "exercise": "Barbell Rows", "set": 1, "weight": 135.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_189", "date": "2026-09-18", "workout": "Pull", "exercise": "Barbell Rows", "set": 2, "weight": 135.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_190", "date": "2026-09-18", "workout": "Pull", "exercise": "Barbell Rows", "set": 3, "weight": 135.0, "targetReps": 12, "actualReps": 12, "notes": "Increase +2.5", "isIncreased": false}, {"id": "row_191", "date": "2026-09-18", "workout": "Pull", "exercise": "Single Arm Preacher Curl", "set": 1, "weight": 22.5, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_192", "date": "2026-09-18", "workout": "Pull", "exercise": "Single Arm Preacher Curl", "set": 2, "weight": 22.5, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_193", "date": "2026-09-18", "workout": "Pull", "exercise": "Single Arm Preacher Curl", "set": 3, "weight": 22.5, "targetReps": 12, "actualReps": 12, "notes": "Increase +15", "isIncreased": false}, {"id": "row_194", "date": "2026-09-18", "workout": "Pull", "exercise": "Face Pulls", "set": 1, "weight": 45.0, "targetReps": 12, "actualReps": 7, "notes": "", "isIncreased": false}, {"id": "row_195", "date": "2026-09-18", "workout": "Pull", "exercise": "Face Pulls", "set": 2, "weight": 45.0, "targetReps": 12, "actualReps": 5, "notes": "", "isIncreased": false}, {"id": "row_196", "date": "2026-09-18", "workout": "Pull", "exercise": "Face Pulls", "set": 3, "weight": 45.0, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_197", "date": "2026-09-18", "workout": "Pull", "exercise": "Incline DB Curls", "set": 1, "weight": 32.5, "targetReps": 8, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_198", "date": "2026-09-18", "workout": "Pull", "exercise": "Incline DB Curls", "set": 2, "weight": 32.5, "targetReps": 8, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_199", "date": "2026-09-18", "workout": "Pull", "exercise": "Incline DB Curls", "set": 3, "weight": 30.0, "targetReps": 10, "actualReps": 9, "notes": "", "isIncreased": false}, {"id": "row_200", "date": "2026-09-17", "workout": "Push", "exercise": "Incline Bench Press", "set": 1, "weight": 135.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_201", "date": "2026-09-17", "workout": "Push", "exercise": "Incline Bench Press", "set": 2, "weight": 135.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_202", "date": "2026-09-17", "workout": "Push", "exercise": "Incline Bench Press", "set": 3, "weight": 135.0, "targetReps": 10, "actualReps": 11, "notes": "", "isIncreased": false}, {"id": "row_203", "date": "2026-09-17", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_204", "date": "2026-09-17", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 95.0, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_205", "date": "2026-09-17", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_206", "date": "2026-09-17", "workout": "Push", "exercise": "Lateral Raises", "set": 1, "weight": 25.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_207", "date": "2026-09-17", "workout": "Push", "exercise": "Lateral Raises", "set": 2, "weight": 25.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_208", "date": "2026-09-17", "workout": "Push", "exercise": "Lateral Raises", "set": 3, "weight": 22.5, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_209", "date": "2026-09-17", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 1, "weight": 120.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_210", "date": "2026-09-17", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 2, "weight": 120.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_211", "date": "2026-09-17", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 3, "weight": 120.0, "targetReps": 12, "actualReps": 12, "notes": "Increase +10", "isIncreased": false}, {"id": "row_212", "date": "2026-09-16", "workout": "Legs", "exercise": "Zercher Squats", "set": 1, "weight": 135.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_213", "date": "2026-09-16", "workout": "Legs", "exercise": "Zercher Squats", "set": 2, "weight": 135.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_214", "date": "2026-09-16", "workout": "Legs", "exercise": "Zercher Squats", "set": 3, "weight": 135.0, "targetReps": 12, "actualReps": 12, "notes": "Increase +10", "isIncreased": false}, {"id": "row_215", "date": "2026-09-16", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 1, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_216", "date": "2026-09-16", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 2, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_217", "date": "2026-09-16", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 3, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "Increase +20", "isIncreased": false}, {"id": "row_218", "date": "2026-09-16", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 1, "weight": 140.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_219", "date": "2026-09-16", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 2, "weight": 140.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_220", "date": "2026-09-16", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 3, "weight": 140.0, "targetReps": 12, "actualReps": 12, "notes": "Increase +20", "isIncreased": false}, {"id": "row_221", "date": "2026-09-16", "workout": "Legs", "exercise": "Leg Extension", "set": 1, "weight": 150.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_222", "date": "2026-09-16", "workout": "Legs", "exercise": "Leg Extension", "set": 2, "weight": 150.0, "targetReps": 12, "actualReps": 7, "notes": "", "isIncreased": false}, {"id": "row_223", "date": "2026-09-16", "workout": "Legs", "exercise": "Leg Extension", "set": 3, "weight": 150.0, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_224", "date": "2026-09-15", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 45.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_225", "date": "2026-09-15", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 45.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_226", "date": "2026-09-15", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 45.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_227", "date": "2026-09-15", "workout": "Pull", "exercise": "Barbell Rows", "set": 1, "weight": 135.0, "targetReps": 10, "actualReps": 20, "notes": "", "isIncreased": false}, {"id": "row_228", "date": "2026-09-15", "workout": "Pull", "exercise": "Barbell Rows", "set": 2, "weight": 135.0, "targetReps": 10, "actualReps": 20, "notes": "", "isIncreased": false}, {"id": "row_229", "date": "2026-09-15", "workout": "Pull", "exercise": "Barbell Rows", "set": 3, "weight": 135.0, "targetReps": 10, "actualReps": 20, "notes": "", "isIncreased": false}, {"id": "row_230", "date": "2026-09-15", "workout": "Pull", "exercise": "Face Pulls", "set": 1, "weight": 80.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_231", "date": "2026-09-15", "workout": "Pull", "exercise": "Face Pulls", "set": 2, "weight": 80.0, "targetReps": 20, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_232", "date": "2026-09-15", "workout": "Pull", "exercise": "Face Pulls", "set": 3, "weight": 80.0, "targetReps": 20, "actualReps": 12, "notes": "Increase +5", "isIncreased": false}, {"id": "row_233", "date": "2026-09-15", "workout": "Pull", "exercise": "Incline DB Curls", "set": 1, "weight": 30.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_234", "date": "2026-09-15", "workout": "Pull", "exercise": "Incline DB Curls", "set": 2, "weight": 30.0, "targetReps": 12, "actualReps": 7, "notes": "", "isIncreased": false}, {"id": "row_235", "date": "2026-09-15", "workout": "Pull", "exercise": "Incline DB Curls", "set": 3, "weight": 30.0, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_236", "date": "2026-09-14", "workout": "Push", "exercise": "Weighted Dips", "set": 1, "weight": 90.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_237", "date": "2026-09-14", "workout": "Push", "exercise": "Weighted Dips", "set": 2, "weight": 90.0, "targetReps": 10, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_238", "date": "2026-09-14", "workout": "Push", "exercise": "Weighted Dips", "set": 3, "weight": 90.0, "targetReps": 10, "actualReps": 7, "notes": "", "isIncreased": false}, {"id": "row_239", "date": "2026-09-14", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_240", "date": "2026-09-14", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_241", "date": "2026-09-14", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "Increase +2.5", "isIncreased": false}, {"id": "row_242", "date": "2026-09-14", "workout": "Push", "exercise": "Lateral Raises", "set": 1, "weight": 20.0, "targetReps": 15, "actualReps": 20, "notes": "", "isIncreased": false}, {"id": "row_243", "date": "2026-09-14", "workout": "Push", "exercise": "Lateral Raises", "set": 2, "weight": 20.0, "targetReps": 15, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_244", "date": "2026-09-14", "workout": "Push", "exercise": "Lateral Raises", "set": 3, "weight": 20.0, "targetReps": 15, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_245", "date": "2026-09-14", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 1, "weight": 100.0, "targetReps": 20, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_246", "date": "2026-09-14", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 2, "weight": 120.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_247", "date": "2026-09-14", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 3, "weight": 120.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_248", "date": "2026-09-09", "workout": "Legs", "exercise": "Zercher Squats", "set": 1, "weight": 135.0, "targetReps": 8, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_249", "date": "2026-09-09", "workout": "Legs", "exercise": "Zercher Squats", "set": 2, "weight": 135.0, "targetReps": 8, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_250", "date": "2026-09-09", "workout": "Legs", "exercise": "Zercher Squats", "set": 3, "weight": 135.0, "targetReps": 8, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_251", "date": "2026-09-09", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 1, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_252", "date": "2026-09-09", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 2, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_253", "date": "2026-09-09", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 3, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_254", "date": "2026-09-09", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 1, "weight": 120.0, "targetReps": 15, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_255", "date": "2026-09-09", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 2, "weight": 120.0, "targetReps": 15, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_256", "date": "2026-09-09", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 3, "weight": 120.0, "targetReps": 15, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_257", "date": "2026-09-09", "workout": "Legs", "exercise": "Leg Extension", "set": 1, "weight": 150.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_258", "date": "2026-09-09", "workout": "Legs", "exercise": "Leg Extension", "set": 2, "weight": 150.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_259", "date": "2026-09-09", "workout": "Legs", "exercise": "Leg Extension", "set": 3, "weight": 150.0, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_260", "date": "2026-09-08", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 45.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_261", "date": "2026-09-08", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 45.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_262", "date": "2026-09-08", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 45.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_263", "date": "2026-09-08", "workout": "Pull", "exercise": "Barbell Rows", "set": 1, "weight": 135.0, "targetReps": 10, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_264", "date": "2026-09-08", "workout": "Pull", "exercise": "Barbell Rows", "set": 2, "weight": 135.0, "targetReps": 10, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_265", "date": "2026-09-08", "workout": "Pull", "exercise": "Barbell Rows", "set": 3, "weight": 135.0, "targetReps": 10, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_266", "date": "2026-09-08", "workout": "Pull", "exercise": "Face Pulls", "set": 1, "weight": 45.0, "targetReps": 15, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_267", "date": "2026-09-08", "workout": "Pull", "exercise": "Face Pulls", "set": 2, "weight": 45.0, "targetReps": 15, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_268", "date": "2026-09-08", "workout": "Pull", "exercise": "Face Pulls", "set": 3, "weight": 45.0, "targetReps": 15, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_269", "date": "2026-09-08", "workout": "Pull", "exercise": "Single Arm Preacher Curl", "set": 1, "weight": 22.5, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_270", "date": "2026-09-08", "workout": "Pull", "exercise": "Single Arm Preacher Curl", "set": 2, "weight": 22.5, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_271", "date": "2026-09-08", "workout": "Pull", "exercise": "Single Arm Preacher Curl", "set": 3, "weight": 22.5, "targetReps": 12, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_272", "date": "2026-09-08", "workout": "Pull", "exercise": "Incline DB Curls", "set": 1, "weight": 30.0, "targetReps": 10, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_273", "date": "2026-09-08", "workout": "Pull", "exercise": "Incline DB Curls", "set": 2, "weight": 30.0, "targetReps": 10, "actualReps": 7, "notes": "", "isIncreased": false}, {"id": "row_274", "date": "2026-09-08", "workout": "Pull", "exercise": "Incline DB Curls", "set": 3, "weight": 30.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_275", "date": "2026-09-04", "workout": "Push", "exercise": "Weighted Dips", "set": 1, "weight": 90.0, "targetReps": 10, "actualReps": 10, "notes": "", "isIncreased": false}, {"id": "row_276", "date": "2026-09-04", "workout": "Push", "exercise": "Weighted Dips", "set": 2, "weight": 90.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_277", "date": "2026-09-04", "workout": "Push", "exercise": "Weighted Dips", "set": 3, "weight": 90.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_278", "date": "2026-09-04", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_279", "date": "2026-09-04", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 95.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_280", "date": "2026-09-04", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 95.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_281", "date": "2026-09-04", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 1, "weight": 90.0, "targetReps": 12, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_282", "date": "2026-09-04", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 2, "weight": 90.0, "targetReps": 8, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_283", "date": "2026-09-04", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 3, "weight": 90.0, "targetReps": 8, "actualReps": 6, "notes": "back loosing form last few reps, stick with same weight until comfortable", "isIncreased": false}, {"id": "row_284", "date": "2026-09-03", "workout": "Legs", "exercise": "Zercher Squats", "set": 1, "weight": 135.0, "targetReps": 8, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_285", "date": "2026-09-03", "workout": "Legs", "exercise": "Zercher Squats", "set": 2, "weight": 135.0, "targetReps": 8, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_286", "date": "2026-09-03", "workout": "Legs", "exercise": "Zercher Squats", "set": 3, "weight": 135.0, "targetReps": 8, "actualReps": 12, "notes": "felt very good last 2 sets", "isIncreased": false}, {"id": "row_287", "date": "2026-09-03", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 1, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_288", "date": "2026-09-03", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 2, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_289", "date": "2026-09-03", "workout": "Legs", "exercise": "Romanian Deadlifts", "set": 3, "weight": 95.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_290", "date": "2026-09-03", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 1, "weight": 140.0, "targetReps": 15, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_291", "date": "2026-09-03", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 2, "weight": 140.0, "targetReps": 15, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_292", "date": "2026-09-03", "workout": "Legs", "exercise": "Standing Calf Raises", "set": 3, "weight": 140.0, "targetReps": 15, "actualReps": 8, "notes": "", "isIncreased": false}, {"id": "row_293", "date": "2026-09-03", "workout": "Legs", "exercise": "Leg Extension", "set": 1, "weight": 135.0, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_294", "date": "2026-09-03", "workout": "Legs", "exercise": "Leg Extension", "set": 2, "weight": 135.0, "targetReps": 12, "actualReps": 5, "notes": "", "isIncreased": false}, {"id": "row_295", "date": "2026-09-02", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 1, "weight": 45.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_296", "date": "2026-09-02", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 2, "weight": 45.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_297", "date": "2026-09-02", "workout": "Pull", "exercise": "Weighted Pull-ups", "set": 3, "weight": 45.0, "targetReps": 10, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_298", "date": "2026-09-02", "workout": "Pull", "exercise": "Barbell Rows", "set": 1, "weight": 135.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_299", "date": "2026-09-02", "workout": "Pull", "exercise": "Barbell Rows", "set": 2, "weight": 135.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_300", "date": "2026-09-02", "workout": "Pull", "exercise": "Barbell Rows", "set": 3, "weight": 135.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_301", "date": "2026-09-02", "workout": "Pull", "exercise": "Face Pulls", "set": 1, "weight": 45.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_302", "date": "2026-09-02", "workout": "Pull", "exercise": "Face Pulls", "set": 2, "weight": 45.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_303", "date": "2026-09-02", "workout": "Pull", "exercise": "Face Pulls", "set": 3, "weight": 45.0, "targetReps": 12, "actualReps": 15, "notes": "", "isIncreased": false}, {"id": "row_304", "date": "2026-09-02", "workout": "Pull", "exercise": "Incline DB Curls", "set": 1, "weight": 30.0, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_305", "date": "2026-09-02", "workout": "Pull", "exercise": "Incline DB Curls", "set": 2, "weight": 30.0, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_306", "date": "2026-09-02", "workout": "Pull", "exercise": "Incline DB Curls", "set": 3, "weight": 30.0, "targetReps": 12, "actualReps": 6, "notes": "", "isIncreased": false}, {"id": "row_307", "date": "2026-09-01", "workout": "Push", "exercise": "Weighted Dips", "set": 1, "weight": 90.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_308", "date": "2026-09-01", "workout": "Push", "exercise": "Weighted Dips", "set": 2, "weight": 90.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_309", "date": "2026-09-01", "workout": "Push", "exercise": "Weighted Dips", "set": 3, "weight": 90.0, "targetReps": 10, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_310", "date": "2026-09-01", "workout": "Push", "exercise": "Military Press", "set": 1, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_311", "date": "2026-09-01", "workout": "Push", "exercise": "Military Press", "set": 2, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_312", "date": "2026-09-01", "workout": "Push", "exercise": "Military Press", "set": 3, "weight": 95.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_313", "date": "2026-09-01", "workout": "Push", "exercise": "Lateral Raises", "set": 1, "weight": 20.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_314", "date": "2026-09-01", "workout": "Push", "exercise": "Lateral Raises", "set": 2, "weight": 20.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_315", "date": "2026-09-01", "workout": "Push", "exercise": "Lateral Raises", "set": 3, "weight": 20.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_316", "date": "2026-09-01", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 1, "weight": 120.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_317", "date": "2026-09-01", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 2, "weight": 120.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}, {"id": "row_318", "date": "2026-09-01", "workout": "Push", "exercise": "Overhead Triceps Extension", "set": 3, "weight": 120.0, "targetReps": 12, "actualReps": 12, "notes": "", "isIncreased": false}];
+
+    let records = (() => {
+      const saved = localStorage.getItem('iron_workout_data_v6');
+      return saved ? JSON.parse(saved) : INITIAL_DATA;
+    })();
+
+    let currentMode = 'gym';
+    let activeDate = records[0] ? records[0].date : '2026-10-09';
+    let searchFilter = '';
+
+    function saveState() {
+      localStorage.setItem('iron_workout_data_v6', JSON.stringify(records));
+      updateBadge();
+    }
+
+    function updateBadge() {
+      document.getElementById('set-count-badge').innerText = records.length + ' sets';
+    }
+
+    function showNotification(msg) {
+      const bar = document.getElementById('notification-bar');
+      bar.innerText = msg;
+      bar.classList.remove('hidden');
+      setTimeout(() => bar.classList.add('hidden'), 3500);
+    }
+
+    function getUniqueDates() {
+      const dSet = new Set(records.map(r => r.date));
+      return Array.from(dSet).sort((a, b) => new Date(b) - new Date(a));
+    }
+
+    function duplicateWeek() {
+      if (!records.length) return;
+      const topDate = new Date(records[0].date);
+      let splitIdx = 0;
+      for (let i = 0; i < records.length; i++) {
+        const d = new Date(records[i].date);
+        const diff = Math.abs((topDate - d) / (1000 * 60 * 60 * 24));
+        if (diff > 6) { splitIdx = i; break; }
+        splitIdx = i + 1;
+      }
+
+      const currentWeek = records.slice(0, splitIdx);
+      const groups = {};
+      currentWeek.forEach(r => {
+        const k = r.date + '_' + r.exercise;
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(r);
+      });
+
+      const eligibility = {};
+      Object.keys(groups).forEach(k => {
+        const sets = groups[k];
+        const baseW = sets[0].weight;
+        const uniformW = sets.every(s => s.weight === baseW);
+        const metTarget = sets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
+        eligibility[k] = uniformW && metTarget && baseW > 0;
+      });
+
+      let progCount = 0;
+      const newWeek = currentWeek.map((r, idx) => {
+        const nd = new Date(r.date);
+        nd.setDate(nd.getDate() + 7);
+        const newDateStr = nd.toISOString().split('T')[0];
+        const canProg = eligibility[r.date + '_' + r.exercise];
+
+        let nw = r.weight;
+        if (canProg) {
+          nw = Math.round((r.weight * 1.10) / 2.5) * 2.5;
+          progCount++;
+        }
+
+        return {
+          id: 'row_' + Date.now() + '_' + idx,
+          date: newDateStr,
+          workout: r.workout,
+          exercise: r.exercise,
+          set: r.set,
+          weight: nw,
+          targetReps: r.targetReps,
+          actualReps: null,
+          notes: '',
+          isIncreased: canProg
+        };
+      });
+
+      records = [...newWeek, ...records];
+      activeDate = newWeek[0].date;
+      saveState();
+      render();
+      showNotification('Generated week ' + newWeek[0].date + ': ' + progCount + ' sets increased by 10%.');
+    }
+
+    function exportCSV() {
+      const headers = ['Date', 'Workout', 'Exercise', 'Set', 'Weight', 'Target Reps', 'Actual Reps', 'Notes'];
+      const rows = records.map(r => [
+        r.date,
+        r.workout,
+        '"' + (r.exercise || '').replace(/"/g, '""') + '"',
+        r.set,
+        r.weight,
+        r.targetReps,
+        r.actualReps !== null ? r.actualReps : '',
+        '"' + (r.notes || '').replace(/"/g, '""') + '"'
+      ]);
+      const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const encoded = encodeURI(csv);
+      const link = document.createElement('a');
+      link.setAttribute('href', encoded);
+      link.setAttribute('download', 'iron_workout_' + new Date().toISOString().split('T')[0] + '.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function renderDateTabs() {
+      const dates = getUniqueDates().slice(0, 10);
+      if (!dates.includes(activeDate) && dates.length > 0) activeDate = dates[0];
+      const container = document.getElementById('date-selector');
+      container.innerHTML = dates.map(d => {
+        const count = records.filter(r => r.date === d).length;
+        const wType = records.find(r => r.date === d)?.workout || '';
+        const isSel = d === activeDate;
+        return `
+          <button onclick="setActiveDate('${d}')" class="flex-shrink-0 px-3 py-1.5 rounded text-left border transition ${
+            isSel ? 'bg-zinc-900 border-zinc-600 text-zinc-100' : 'bg-zinc-950 border-zinc-800/80 text-zinc-500 hover:text-zinc-300'
+          }">
+            <div class="text-[11px] font-mono leading-none">${d}</div>
+            <div class="text-[10px] font-mono mt-1 flex justify-between gap-3 text-zinc-400">
+              <span>${wType}</span>
+              <span class="text-zinc-500">${count}s</span>
+            </div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    window.setActiveDate = (d) => {
+      activeDate = d;
+      render();
+    };
+
+    window.updateRecordField = (id, field, value) => {
+      records = records.map(r => {
+        if (r.id !== id) return r;
+        const updated = { ...r };
+        if (field === 'weight') updated.weight = parseFloat(value) || 0;
+        else if (field === 'targetReps') updated.targetReps = parseInt(value, 10) || 0;
+        else if (field === 'actualReps') updated.actualReps = value === '' ? null : (parseInt(value, 10) || 0);
+        else if (field === 'date') updated.date = value;
+        else if (field === 'set') updated.set = parseInt(value, 10) || 1;
+        else updated[field] = value;
+        return updated;
+      });
+      saveState();
+      if (field === 'date') renderDateTabs();
+    };
+
+    window.updateReps = (id, delta) => {
+      records = records.map(r => {
+        if (r.id !== id) return r;
+        const cur = r.actualReps === null ? r.targetReps : r.actualReps;
+        return { ...r, actualReps: Math.max(0, cur + delta) };
+      });
+      saveState();
+      renderGymView();
+    };
+
+    window.matchTarget = (id) => {
+      records = records.map(r => r.id === id ? { ...r, actualReps: r.targetReps } : r);
+      saveState();
+      renderGymView();
+    };
+
+    window.adjustWeight = (id, delta) => {
+      records = records.map(r => {
+        if (r.id !== id) return r;
+        return { ...r, weight: Math.max(0, parseFloat((r.weight + delta).toFixed(2))) };
+      });
+      saveState();
+      renderGymView();
+    };
+
+    function renderGymView() {
+      const activeRows = records.filter(r => r.date === activeDate);
+      const groups = [];
+      activeRows.forEach(r => {
+        let g = groups.find(x => x.exercise === r.exercise);
+        if (!g) { g = { exercise: r.exercise, workout: r.workout, sets: [] }; groups.push(g); }
+        g.sets.push(r);
+      });
+
+      const container = document.getElementById('gym-exercise-list');
+      if (!groups.length) {
+        container.innerHTML = '<div class="text-center py-10 text-zinc-600 text-xs font-mono">No entries for this date.</div>';
+        return;
+      }
+
+      container.innerHTML = groups.map(g => `
+        <div class="bg-zinc-950 border border-zinc-800/80 rounded">
+          <div class="px-3 py-2 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-zinc-200">${g.exercise}</span>
+              <span class="text-[10px] font-mono text-zinc-500 uppercase">${g.workout}</span>
+            </div>
+            <span class="text-[11px] font-mono text-zinc-500">${g.sets.length} sets</span>
+          </div>
+          <div class="divide-y divide-zinc-900">
+            ${g.sets.map(s => {
+              const isHit = s.actualReps !== null && s.actualReps >= s.targetReps;
+              return `
+                <div class="px-3 py-2 flex items-center justify-between text-xs">
+                  <div class="flex items-center gap-2.5">
+                    <span class="font-mono text-zinc-500 w-4">${s.set}</span>
+                    
+                    <!-- Direct Editable Weight -->
+                    <div class="flex items-center gap-1">
+                      <input 
+                        type="number" 
+                        step="0.5" 
+                        value="${s.weight}" 
+                        onchange="updateRecordField('${s.id}', 'weight', this.value)"
+                        class="w-14 bg-zinc-900 border border-zinc-800 focus:border-zinc-600 rounded px-1.5 py-0.5 font-mono text-right text-xs focus:outline-none ${s.isIncreased ? 'text-emerald-400 font-medium' : 'text-zinc-200'}"
+                      />
+                      <span class="text-[10px] text-zinc-500 font-mono">lbs</span>
+                      ${s.isIncreased ? '<span class="text-[9px] font-mono text-emerald-500 border border-emerald-900/50 px-1 rounded">+10%</span>' : ''}
+                    </div>
+
+                    <div class="flex items-center border border-zinc-800 rounded">
+                      <button onclick="adjustWeight('${s.id}', -2.5)" class="px-1.5 py-0.5 text-zinc-400 hover:text-zinc-100 font-mono">-</button>
+                      <button onclick="adjustWeight('${s.id}', 2.5)" class="px-1.5 py-0.5 text-zinc-400 hover:text-zinc-100 font-mono border-l border-zinc-800">+</button>
+                    </div>
+
+                    <!-- Direct Editable Target Reps -->
+                    <div class="flex items-center gap-1 ml-1 text-zinc-500 text-[11px] font-mono">
+                      <span>tgt:</span>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        value="${s.targetReps}" 
+                        onchange="updateRecordField('${s.id}', 'targetReps', this.value)"
+                        class="w-9 bg-zinc-900 border border-zinc-800 focus:border-zinc-600 rounded px-1 py-0.5 text-center text-xs text-zinc-300 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <!-- Direct Editable Actual Reps + Quick Adjusters -->
+                    <div class="flex items-center border border-zinc-800 rounded font-mono">
+                      <button onclick="updateReps('${s.id}', -1)" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">-</button>
+                      <input 
+                        type="number" 
+                        placeholder="-" 
+                        value="${s.actualReps !== null ? s.actualReps : ''}" 
+                        onchange="updateRecordField('${s.id}', 'actualReps', this.value)"
+                        class="w-9 bg-transparent text-center text-xs focus:outline-none ${s.actualReps === null ? 'text-zinc-600' : isHit ? 'text-emerald-400 font-medium' : 'text-zinc-200'}"
+                      />
+                      <button onclick="updateReps('${s.id}', 1)" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">+</button>
+                    </div>
+                    
+                    <button onclick="matchTarget('${s.id}')" class="px-2 py-0.5 rounded border text-[11px] font-mono transition ${
+                      isHit ? 'border-emerald-800/80 text-emerald-400 bg-emerald-950/20' : 'border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }">
+                      ${s.targetReps}
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderSheetView() {
+      const filtered = records.filter(r => !searchFilter || r.exercise.toLowerCase().includes(searchFilter.toLowerCase()));
+      const tbody = document.getElementById('sheet-table-body');
+      tbody.innerHTML = filtered.map(r => `
+        <tr class="hover:bg-zinc-900/40 transition">
+          <td class="py-1 px-2">
+            <input 
+              type="text" 
+              value="${r.date}" 
+              onchange="updateRecordField('${r.id}', 'date', this.value)"
+              class="w-24 bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 text-zinc-400 font-mono text-[11px] focus:outline-none"
+            />
+          </td>
+          <td class="py-1 px-2">
+            <input 
+              type="text" 
+              value="${r.workout}" 
+              onchange="updateRecordField('${r.id}', 'workout', this.value)"
+              class="w-14 bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 text-zinc-400 font-mono text-[11px] focus:outline-none"
+            />
+          </td>
+          <td class="py-1 px-2">
+            <input 
+              type="text" 
+              value="${r.exercise}" 
+              onchange="updateRecordField('${r.id}', 'exercise', this.value)"
+              class="w-full min-w-[150px] bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 font-sans text-zinc-200 text-xs focus:outline-none"
+            />
+          </td>
+          <td class="py-1 px-2 text-center">
+            <input 
+              type="number" 
+              value="${r.set}" 
+              onchange="updateRecordField('${r.id}', 'set', this.value)"
+              class="w-8 bg-transparent text-center text-zinc-500 font-mono text-[11px] focus:outline-none hover:border-b hover:border-zinc-700 focus:border-b focus:border-zinc-500"
+            />
+          </td>
+          <td class="py-1 px-2 text-right">
+            <input 
+              type="number" 
+              step="0.5" 
+              value="${r.weight}" 
+              onchange="updateRecordField('${r.id}', 'weight', this.value)"
+              class="w-16 bg-transparent text-right font-mono text-[11px] focus:outline-none hover:border-b hover:border-zinc-700 focus:border-b focus:border-zinc-500 ${r.isIncreased ? 'text-emerald-400 font-medium' : 'text-zinc-200'}"
+            />
+          </td>
+          <td class="py-1 px-2 text-center">
+            <input 
+              type="number" 
+              value="${r.targetReps}" 
+              onchange="updateRecordField('${r.id}', 'targetReps', this.value)"
+              class="w-10 bg-transparent text-center text-zinc-400 font-mono text-[11px] focus:outline-none hover:border-b hover:border-zinc-700 focus:border-b focus:border-zinc-500"
+            />
+          </td>
+          <td class="py-1 px-2 text-center">
+            <input 
+              type="number" 
+              placeholder="-" 
+              value="${r.actualReps !== null ? r.actualReps : ''}" 
+              onchange="updateRecordField('${r.id}', 'actualReps', this.value)"
+              class="w-10 bg-transparent text-center font-mono text-[11px] focus:outline-none hover:border-b hover:border-zinc-700 focus:border-b focus:border-zinc-500 ${
+                r.actualReps === null ? 'text-zinc-600' : r.actualReps >= r.targetReps ? 'text-emerald-400 font-medium' : 'text-zinc-300'
+              }"
+            />
+          </td>
+          <td class="py-1 px-2">
+            <input 
+              type="text" 
+              value="${r.notes || ''}" 
+              placeholder="Notes..."
+              onchange="updateRecordField('${r.id}', 'notes', this.value)"
+              class="w-full min-w-[120px] bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 font-sans text-zinc-400 text-xs focus:outline-none placeholder-zinc-700"
+            />
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function render() {
+      updateBadge();
+      if (currentMode === 'gym') {
+        document.getElementById('view-gym').classList.remove('hidden');
+        document.getElementById('view-sheet').classList.add('hidden');
+        document.getElementById('search-container').classList.add('hidden');
+        document.getElementById('tab-gym').className = "px-2.5 py-1 rounded text-zinc-100 bg-zinc-800 transition";
+        document.getElementById('tab-sheet').className = "px-2.5 py-1 rounded text-zinc-400 hover:text-zinc-200 transition";
+        renderDateTabs();
+        renderGymView();
+      } else {
+        document.getElementById('view-gym').classList.add('hidden');
+        document.getElementById('view-sheet').classList.remove('hidden');
+        document.getElementById('search-container').classList.remove('hidden');
+        document.getElementById('tab-gym').className = "px-2.5 py-1 rounded text-zinc-400 hover:text-zinc-200 transition";
+        document.getElementById('tab-sheet').className = "px-2.5 py-1 rounded text-zinc-100 bg-zinc-800 transition";
+        renderSheetView();
+      }
+    }
+
+    document.getElementById('tab-gym').onclick = () => { currentMode = 'gym'; render(); };
+    document.getElementById('tab-sheet').onclick = () => { currentMode = 'sheet'; render(); };
+    document.getElementById('btn-duplicate').onclick = duplicateWeek;
+    document.getElementById('btn-export').onclick = exportCSV;
+    document.getElementById('search-input').oninput = (e) => { searchFilter = e.target.value; renderSheetView(); };
+
+    render();
+  </script>
+</body>
+</html>
