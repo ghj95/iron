@@ -51,10 +51,10 @@
         </div>
 
         <button id="btn-export" title="Export CSV" class="px-2 py-1 text-xs font-mono text-zinc-400 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded transition active:scale-95 touch-btn">
-          Exp
+          Export
         </button>
         <label for="csv-file-input" title="Import CSV" class="cursor-pointer px-2 py-1 text-xs font-mono text-zinc-400 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded transition active:scale-95 touch-btn">
-          Imp
+          Import
         </label>
         <input type="file" id="csv-file-input" accept=".csv" class="hidden" onchange="importCSV(event)" />
       </div>
@@ -120,7 +120,7 @@
           <div class="text-[10px] font-mono text-zinc-500">current combined</div>
         </div>
         <div class="bg-zinc-950 border border-zinc-800/80 p-3 rounded">
-          <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Big 5 Prior Window</div>
+          <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Big 5 Prior Month</div>
           <div id="metric-b5-past" class="text-base md:text-lg font-mono font-bold text-zinc-300 mt-0.5"></div>
           <div id="metric-b5-delta" class="text-[10px] font-mono text-emerald-400"></div>
         </div>
@@ -393,7 +393,8 @@
     }
 
     function updateBadge() {
-      document.getElementById('set-count-badge').innerText = records.length + ' sets';
+      const nonNullCount = records.filter(r => r.actualReps !== null).length;
+      document.getElementById('set-count-badge').innerText = nonNullCount + ' sets';
     }
 
     function showNotification(msg) {
@@ -758,6 +759,80 @@
       updateRepsInPlace(id, r.targetReps);
     };
 
+    function getPreviousNotes(exerciseName, currentDate) {
+      const curDateObj = new Date(currentDate);
+      const priorRows = records
+        .filter(r => {
+          if (r.exercise !== exerciseName || r.date >= currentDate) return false;
+          const diffDays = (curDateObj - new Date(r.date)) / (1000 * 60 * 60 * 24);
+          return diffDays > 0 && diffDays <= 7;
+        })
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      if (!priorRows.length) return null;
+
+      const priorDates = Array.from(new Set(priorRows.map(r => r.date))).sort((a, b) => new Date(b) - new Date(a));
+      for (const d of priorDates) {
+        const sessionNotes = priorRows
+          .filter(r => r.date === d && r.notes && r.notes.trim().length > 0)
+          .map(r => `Set ${r.set}: ${r.notes.trim()}`);
+        if (sessionNotes.length > 0) {
+          return { date: d, notes: sessionNotes };
+        }
+      }
+      return null;
+    }
+
+    window.toggleNotePopup = (popId) => {
+      const el = document.getElementById(popId);
+      if (el) el.classList.toggle('hidden');
+    };
+
+    window.addSetToExercise = (exerciseName, workoutName) => {
+      const currentSets = records.filter(r => r.date === activeDate && r.exercise === exerciseName);
+      if (!currentSets.length) return;
+
+      historyStack.push({ records: JSON.parse(JSON.stringify(records)), activeDate });
+      if (historyStack.length > 5) historyStack.shift();
+
+      const lastSet = currentSets[currentSets.length - 1];
+      const newSetRecord = {
+        id: generateUUID(),
+        date: activeDate,
+        workout: workoutName,
+        exercise: exerciseName,
+        set: currentSets.length + 1,
+        weight: lastSet.weight,
+        targetReps: lastSet.targetReps,
+        actualReps: null,
+        notes: '',
+        isIncreased: false
+      };
+
+      const lastIndex = records.findLastIndex(r => r.date === activeDate && r.exercise === exerciseName);
+      records.splice(lastIndex + 1, 0, newSetRecord);
+      saveState();
+      render();
+    };
+
+    window.removeSetFromExercise = (exerciseName) => {
+      const currentSets = records.filter(r => r.date === activeDate && r.exercise === exerciseName);
+      if (currentSets.length <= 1) {
+        showNotification('Cannot remove the only remaining set.');
+        return;
+      }
+
+      historyStack.push({ records: JSON.parse(JSON.stringify(records)), activeDate });
+      if (historyStack.length > 5) historyStack.shift();
+
+      const lastIndex = records.findLastIndex(r => r.date === activeDate && r.exercise === exerciseName);
+      if (lastIndex !== -1) {
+        records.splice(lastIndex, 1);
+        saveState();
+        render();
+      }
+    };
+
     function renderGymView() {
       const activeRows = records.filter(r => r.date === activeDate);
       const groups = [];
@@ -773,15 +848,58 @@
         return;
       }
 
-      container.innerHTML = groups.map(g => `
-        <div class="bg-zinc-950 border border-zinc-800/80 rounded">
+      container.innerHTML = groups.map((g, idx) => {
+        const prevNoteData = getPreviousNotes(g.exercise, activeDate);
+        const popupId = `note-pop-${idx}`;
+
+        return `
+        <div class="bg-zinc-950 border border-zinc-800/80 rounded relative">
           <div class="px-3 py-2 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="text-xs font-medium text-zinc-200">${escapeHTML(g.exercise)}</span>
               <span class="text-[10px] font-mono text-zinc-500 uppercase">${escapeHTML(g.workout)}</span>
+              ${prevNoteData ? `
+                <button 
+                  onclick="toggleNotePopup('${popupId}')" 
+                  title="View previous week notes (${escapeHTML(prevNoteData.date)})" 
+                  class="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900 touch-btn"
+                >
+                  Notes
+                </button>
+              ` : ''}
             </div>
-            <span class="text-[11px] font-mono text-zinc-500">${g.sets.length}s</span>
+            
+            <!-- Set Count and +/- Controls -->
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-mono text-zinc-500">${g.sets.length}s</span>
+              <div class="flex items-center border border-zinc-800 rounded bg-zinc-900 overflow-hidden font-mono text-xs">
+                <button 
+                  onclick="addSetToExercise('${escapeHTML(g.exercise)}', '${escapeHTML(g.workout)}')" 
+                  title="Add set" 
+                  class="px-2 py-0.5 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 border-r border-zinc-800 transition active:scale-95 touch-btn"
+                >+</button>
+                <button 
+                  onclick="removeSetFromExercise('${escapeHTML(g.exercise)}')" 
+                  title="Remove set" 
+                  class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition active:scale-95 touch-btn"
+                >-</button>
+              </div>
+            </div>
           </div>
+
+          <!-- Note Popup -->
+          ${prevNoteData ? `
+            <div id="${popupId}" class="hidden p-2.5 mx-3 mt-2 bg-zinc-900/90 border border-zinc-700 rounded text-xs font-mono text-zinc-300 space-y-1">
+              <div class="flex items-center justify-between text-[10px] text-zinc-500 pb-1 border-b border-zinc-800">
+                <span>PRIOR SESSION NOTES (${escapeHTML(prevNoteData.date)})</span>
+                <button onclick="toggleNotePopup('${popupId}')" class="text-zinc-400 hover:text-zinc-200">✕</button>
+              </div>
+              <div class="space-y-0.5 text-amber-200/90 pt-1">
+                ${prevNoteData.notes.map(n => `<div>• ${escapeHTML(n)}</div>`).join('')}
+              </div>
+            </div>
+          ` : ''}
+
           <div class="divide-y divide-zinc-900">
             ${g.sets.map(s => {
               const isHit = s.actualReps !== null && s.actualReps >= s.targetReps;
@@ -812,7 +930,7 @@
                     </button>
                   </div>
 
-                  <!-- Actual Reps Logger (Minus, editable number with auto-select, Plus) -->
+                  <!-- Actual Reps Logger -->
                   <div class="flex items-center border border-zinc-800 rounded font-mono">
                     <button onclick="updateReps('${s.id}', -1)" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">-</button>
                     <input 
@@ -832,21 +950,24 @@
             }).join('')}
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function renderSheetView() {
       const filtered = records.filter(r => !searchFilter || r.exercise.toLowerCase().includes(searchFilter.toLowerCase()));
       const tbody = document.getElementById('sheet-table-body');
-      tbody.innerHTML = filtered.map(r => `
-        <tr class="hover:bg-zinc-900/40 transition">
+      tbody.innerHTML = filtered.map(r => {
+        const isSelectedDate = r.date === activeDate;
+        return `
+        <tr class="transition ${isSelectedDate ? 'bg-emerald-950/20 border-l-2 border-emerald-500' : 'hover:bg-zinc-900/40'}">
           <td class="py-1 px-2">
             <input 
               type="text" 
               value="${escapeHTML(r.date)}" 
               onfocus="this.select()"
               onchange="updateRecordField('${r.id}', 'date', this.value)"
-              class="w-24 bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 text-zinc-400 font-mono text-[11px] focus:outline-none"
+              class="w-24 bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 ${isSelectedDate ? 'text-emerald-300 font-medium' : 'text-zinc-400'} font-mono text-[11px] focus:outline-none"
             />
           </td>
           <td class="py-1 px-2">
@@ -864,7 +985,7 @@
               value="${escapeHTML(r.exercise)}" 
               onfocus="this.select()"
               onchange="updateRecordField('${r.id}', 'exercise', this.value)"
-              class="w-full min-w-[150px] bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 font-sans text-zinc-200 text-xs focus:outline-none"
+              class="w-full min-w-[150px] bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 font-sans ${isSelectedDate ? 'text-zinc-100 font-medium' : 'text-zinc-200'} text-xs focus:outline-none"
             />
           </td>
           <td class="py-1 px-2 text-center">
@@ -925,7 +1046,8 @@
             />
           </td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
     }
 
     let selectedExerciseForChart = 'Zercher Squats';
