@@ -294,7 +294,7 @@
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
       } catch (e) {}
-      return [{ date: '2020-01-01', weight: 175.0 }];
+      return [{ date: '2020-01-01', weight: 180.0 }];
     })();
 
     function saveBWHistory() {
@@ -339,9 +339,9 @@
         const historicalBW = getBodyweightForDate(date);
         const totalMass = addedWeight + historicalBW;
         const total1RM = totalMass * (1 + reps / 30.0);
-        return Math.max(0, Math.round((total1RM - historicalBW) * 10) / 10);
+        return Math.max(0, Math.round(total1RM - historicalBW));
       }
-      return Math.round(addedWeight * (1 + reps / 30.0) * 10) / 10;
+      return Math.round(addedWeight * (1 + reps / 30.0));
     }
 
     if (navigator.storage && navigator.storage.persist) {
@@ -1011,7 +1011,7 @@
                   '<button onclick="updateReps(\'' + s.id + '\', 1)" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">+</button>' +
                 '</div>' +
               '</div>' +
-              '<div id="inline-note-container-' + s.id + '" class="' + (hasNotes ? '' : 'hidden') + ' mt-1.5 pl-5 pr-1">' +
+              '<div id="inline-note-container-' + s.id + '" class="hidden mt-1.5 pl-5 pr-1">' +
                 '<input ' +
                   'type="text" ' +
                   'value="' + escapeHTML(s.notes || '') + '" ' +
