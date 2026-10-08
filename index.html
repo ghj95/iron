@@ -1108,14 +1108,14 @@
         const weightDelta = getExerciseWeightDelta(r.exercise, r.date, r.weight, r.targetReps);
 
         return `
-        <tr class="transition ${isSelectedDate ? 'bg-emerald-950/20 border-l-2 border-emerald-500' : 'hover:bg-zinc-900/40'}">
+        <tr class="transition ${isSelectedDate ? 'bg-zinc-800/40 border-l-2 border-zinc-400' : 'hover:bg-zinc-900/40'}">
           <td class="py-1 px-2">
             <input 
               type="text" 
               value="${escapeHTML(r.date)}" 
               onfocus="this.select()"
               onchange="updateRecordField('${r.id}', 'date', this.value)"
-              class="w-24 bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 ${isSelectedDate ? 'text-emerald-300 font-medium' : 'text-zinc-400'} font-mono text-[11px] focus:outline-none"
+              class="w-24 bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 ${isSelectedDate ? 'text-zinc-200 font-medium' : 'text-zinc-400'} font-mono text-[11px] focus:outline-none"
             />
           </td>
           <td class="py-1 px-2">
