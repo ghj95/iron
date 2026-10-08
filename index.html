@@ -81,6 +81,20 @@
         class="bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-200 rounded px-2.5 py-1 w-36 md:w-44 focus:outline-none focus:border-zinc-700"
       >
     </div>
+    <div id="bw-container" class="hidden flex items-center gap-1.5 font-mono text-xs text-zinc-400">
+      <label for="input-user-bw" class="text-[11px] text-zinc-500">BW</label>
+      <input 
+        type="number" 
+        id="input-user-bw" 
+        inputmode="decimal"
+        step="0.5" 
+        placeholder="175"
+        onfocus="this.select()"
+        onchange="updateUserBW(this.value)"
+        class="bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-200 rounded px-2 py-1 w-16 text-right focus:outline-none focus:border-zinc-700"
+      >
+      <span class="text-[11px] text-zinc-500">lbs</span>
+    </div>
   </div>
 
   <!-- Main View Container -->
@@ -270,6 +284,65 @@
   <script>
     const STORAGE_KEY_PROD = 'iron_vault_prod';
     const HISTORY_KEY_PROD = 'iron_vault_history';
+    const BW_HISTORY_KEY = 'iron_vault_bw_history';
+
+    let bwHistory = (() => {
+      try {
+        const saved = localStorage.getItem(BW_HISTORY_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+      return [{ date: '2020-01-01', weight: 175.0 }];
+    })();
+
+    function saveBWHistory() {
+      localStorage.setItem(BW_HISTORY_KEY, JSON.stringify(bwHistory));
+    }
+
+    function getBodyweightForDate(targetDate) {
+      if (!bwHistory.length) return 175.0;
+      const sorted = [...bwHistory].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const valid = sorted.filter(entry => entry.date <= targetDate);
+      if (valid.length > 0) {
+        return valid[valid.length - 1].weight;
+      }
+      return sorted[0].weight;
+    }
+
+    window.updateUserBW = (val) => {
+      const parsed = parseFloat(val);
+      if (isNaN(parsed) || parsed <= 0) return;
+
+      const dateKey = activeDate || getTodayString();
+      const existingIdx = bwHistory.findIndex(e => e.date === dateKey);
+
+      if (existingIdx !== -1) {
+        bwHistory[existingIdx].weight = parsed;
+      } else {
+        bwHistory.push({ date: dateKey, weight: parsed });
+        bwHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+      }
+
+      saveBWHistory();
+      if (currentMode === 'stats') calculateStats();
+    };
+
+    const CALISTHENICS_EXERCISES = [
+      "Weighted Pull-ups",
+      "Weighted Dips"
+    ];
+
+    function calculateEstimated1RM(exercise, addedWeight, reps, date) {
+      if (CALISTHENICS_EXERCISES.includes(exercise)) {
+        const historicalBW = getBodyweightForDate(date);
+        const totalMass = addedWeight + historicalBW;
+        const total1RM = totalMass * (1 + reps / 30.0);
+        return Math.max(0, Math.round((total1RM - historicalBW) * 10) / 10);
+      }
+      return Math.round(addedWeight * (1 + reps / 30.0) * 10) / 10;
+    }
 
     if (navigator.storage && navigator.storage.persist) {
       navigator.storage.persist().catch(() => {});
@@ -833,6 +906,34 @@
         render();
       }
     };
+    
+    function getExerciseWeightDelta(exerciseName, currentDate, currentWeight) {
+      if (!currentWeight || currentWeight <= 0) return 0;
+      
+      const priorRows = records
+        .filter(r => r.exercise === exerciseName && r.date < currentDate && r.weight > 0)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      if (!priorRows.length) return 0;
+
+      const priorDate = priorRows[0].date;
+      const priorSessionSets = priorRows.filter(r => r.date === priorDate);
+      const priorMaxWeight = Math.max(...priorSessionSets.map(r => r.weight));
+
+      const diff = currentWeight - priorMaxWeight;
+      return diff > 0 ? Math.round(diff * 10) / 10 : 0;
+    }
+
+    window.toggleInlineNote = (setId) => {
+      const el = document.getElementById('inline-note-container-' + setId);
+      if (el) {
+        el.classList.toggle('hidden');
+        if (!el.classList.contains('hidden')) {
+          const input = el.querySelector('input');
+          if (input) input.focus();
+        }
+      }
+    };
 
     function renderGymView() {
       const activeRows = records.filter(r => r.date === activeDate);
@@ -851,107 +952,120 @@
 
       container.innerHTML = groups.map((g, idx) => {
         const prevNoteData = getPreviousNotes(g.exercise, activeDate);
-        const popupId = `note-pop-${idx}`;
+        const popupId = 'note-pop-' + idx;
 
-        return `
-        <div class="bg-zinc-950 border border-zinc-800/80 rounded relative">
-          <div class="px-3 py-2 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-medium text-zinc-200">${escapeHTML(g.exercise)}</span>
-              <span class="text-[10px] font-mono text-zinc-500 uppercase">${escapeHTML(g.workout)}</span>
-              ${prevNoteData ? `
-                <button 
-                  onclick="toggleNotePopup('${popupId}')" 
-                  title="View previous week notes (${escapeHTML(prevNoteData.date)})" 
-                  class="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900 touch-btn"
-                >
-                  !
-                </button>
-              ` : ''}
-            </div>
-            
-            <!-- Set Count and +/- Controls -->
-            <div class="flex items-center gap-2">
-              <span class="text-[11px] font-mono text-zinc-500">${g.sets.length}s</span>
-              <div class="flex items-center border border-zinc-800 rounded bg-zinc-900 overflow-hidden font-mono text-xs">
-                <button 
-                  onclick="addSetToExercise('${escapeHTML(g.exercise)}', '${escapeHTML(g.workout)}')" 
-                  title="Add set" 
-                  class="px-2 py-0.5 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 border-r border-zinc-800 transition active:scale-95 touch-btn"
-                >+</button>
-                <button 
-                  onclick="removeSetFromExercise('${escapeHTML(g.exercise)}')" 
-                  title="Remove set" 
-                  class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition active:scale-95 touch-btn"
-                >-</button>
-              </div>
-            </div>
-          </div>
+        const currentGroupMaxWeight = Math.max(...g.sets.map(s => s.weight || 0));
+        const weightDelta = getExerciseWeightDelta(g.exercise, activeDate, currentGroupMaxWeight);
 
-          <!-- Note Popup -->
-          ${prevNoteData ? `
-            <div id="${popupId}" class="hidden p-2.5 mx-3 mt-2 bg-zinc-900/90 border border-zinc-700 rounded text-xs font-mono text-zinc-300 space-y-1">
-              <div class="flex items-center justify-between text-[10px] text-zinc-500 pb-1 border-b border-zinc-800">
-                <span>PRIOR SESSION NOTES (${escapeHTML(prevNoteData.date)})</span>
-                <button onclick="toggleNotePopup('${popupId}')" class="text-zinc-400 hover:text-zinc-200">✕</button>
-              </div>
-              <div class="space-y-0.5 text-amber-200/90 pt-1">
-                ${prevNoteData.notes.map(n => `<div>• ${escapeHTML(n)}</div>`).join('')}
-              </div>
-            </div>
-          ` : ''}
+        const setsHtml = g.sets.map(s => {
+          const isHit = s.actualReps !== null && s.actualReps >= s.targetReps;
+          const hasNotes = Boolean(s.notes && s.notes.trim().length > 0);
+          const noteBtnClass = hasNotes
+            ? 'border-amber-700/80 text-amber-300 bg-amber-950/40'
+            : 'border-transparent text-zinc-600 hover:text-zinc-400';
 
-          <div class="divide-y divide-zinc-900">
-            ${g.sets.map(s => {
-              const isHit = s.actualReps !== null && s.actualReps >= s.targetReps;
-              return `
-                <div class="px-3 py-1.5 flex items-center justify-between text-xs">
-                  <div class="flex items-center gap-2 sm:gap-3">
-                    <span class="font-mono text-zinc-500 w-3">${s.set}</span>
-                    
-                    <div class="flex items-center gap-1">
-                      <input 
-                        type="number" 
-                        inputmode="decimal"
-                        step="0.5" 
-                        value="${s.weight}" 
-                        onfocus="this.select()"
-                        onchange="updateRecordField('${s.id}', 'weight', this.value)"
-                        class="w-14 sm:w-16 bg-zinc-900 border border-zinc-800 focus:border-zinc-600 rounded px-1.5 py-1 font-mono text-right text-xs focus:outline-none ${s.isIncreased ? 'text-emerald-400 font-medium' : 'text-zinc-200'}"
-                      />
-                      <span class="text-[10px] text-zinc-500 font-mono">lbs</span>
-                    </div>
+          return '' +
+            '<div class="flex flex-col px-3 py-1.5 text-xs">' +
+              '<div class="flex items-center justify-between">' +
+                '<div class="flex items-center gap-2 sm:gap-3">' +
+                  '<span class="font-mono text-zinc-500 w-3">' + s.set + '</span>' +
+                  '<div class="flex items-center gap-1">' +
+                    '<input ' +
+                      'type="number" ' +
+                      'inputmode="decimal" ' +
+                      'step="0.5" ' +
+                      'value="' + s.weight + '" ' +
+                      'onfocus="this.select()" ' +
+                      'onchange="updateRecordField(\'' + s.id + '\', \'weight\', this.value)" ' +
+                      'class="w-14 sm:w-16 bg-zinc-900 border border-zinc-800 focus:border-zinc-600 rounded px-1.5 py-1 font-mono text-right text-xs focus:outline-none ' + (s.isIncreased ? 'text-emerald-400 font-medium' : 'text-zinc-200') + '"' +
+                    '/>' +
+                    '<span class="text-[10px] text-zinc-500 font-mono">lbs</span>' +
+                  '</div>' +
+                  '<button ' +
+                    'onclick="matchTarget(\'' + s.id + '\')" ' +
+                    'title="Tap to match target reps" ' +
+                    'class="text-[11px] font-mono transition text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded border border-transparent hover:border-zinc-800 active:scale-95 touch-btn"' +
+                  '>' +
+                    'tgt:' + s.targetReps +
+                  '</button>' +
+                  '<button ' +
+                    'onclick="toggleInlineNote(\'' + s.id + '\')" ' +
+                    'title="Toggle Note" ' +
+                    'class="text-[10px] font-mono px-1.5 py-0.5 rounded border transition touch-btn ' + noteBtnClass + '"' +
+                  '>' +
+                    'note' +
+                  '</button>' +
+                '</div>' +
+                '<div class="flex items-center border border-zinc-800 rounded font-mono">' +
+                  '<button onclick="updateReps(\'' + s.id + '\', -1)" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">-</button>' +
+                  '<input ' +
+                    'type="number" ' +
+                    'placeholder="-" ' +
+                    'data-reps-id="' + s.id + '" ' +
+                    'data-target-reps="' + s.targetReps + '" ' +
+                    'value="' + (s.actualReps !== null ? s.actualReps : '') + '" ' +
+                    'onfocus="this.select()" ' +
+                    'onchange="updateRepsInPlace(\'' + s.id + '\', this.value === \'\' ? null : parseInt(this.value, 10))" ' +
+                    'class="w-8 bg-transparent text-center text-xs focus:outline-none ' + (s.actualReps === null ? 'text-zinc-600' : isHit ? 'text-emerald-400 font-medium' : 'text-zinc-200') + '"' +
+                  '/>' +
+                  '<button onclick="updateReps(\'' + s.id + '\', 1)" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">+</button>' +
+                '</div>' +
+              '</div>' +
+              '<div id="inline-note-container-' + s.id + '" class="' + (hasNotes ? '' : 'hidden') + ' mt-1.5 pl-5 pr-1">' +
+                '<input ' +
+                  'type="text" ' +
+                  'value="' + escapeHTML(s.notes || '') + '" ' +
+                  'placeholder="Note..." ' +
+                  'onfocus="this.select()" ' +
+                  'onchange="updateRecordField(\'' + s.id + '\', \'notes\', this.value)" ' +
+                  'class="w-full bg-zinc-900 border border-zinc-800/80 focus:border-zinc-600 rounded px-2 py-1 text-[11px] font-mono text-amber-200/90 placeholder-zinc-700 focus:outline-none"' +
+                '/>' +
+              '</div>' +
+            '</div>';
+        }).join('');
 
-                    <button 
-                      onclick="matchTarget('${s.id}')"
-                      title="Tap to match target reps"
-                      class="text-[11px] font-mono transition text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded border border-transparent hover:border-zinc-800 active:scale-95 touch-btn"
-                    >
-                      tgt:${s.targetReps}
-                    </button>
-                  </div>
+        const prevNoteBlock = prevNoteData
+          ? '<div id="' + popupId + '" class="hidden p-2.5 mx-3 mt-2 bg-zinc-900/90 border border-zinc-700 rounded text-xs font-mono text-zinc-300 space-y-1">' +
+              '<div class="flex items-center justify-between text-[10px] text-zinc-500 pb-1 border-b border-zinc-800">' +
+                '<span>PRIOR SESSION NOTES (' + escapeHTML(prevNoteData.date) + ')</span>' +
+                '<button onclick="toggleNotePopup(\'' + popupId + '\')" class="text-zinc-400 hover:text-zinc-200">x</button>' +
+              '</div>' +
+              '<div class="space-y-0.5 text-amber-200/90 pt-1">' +
+                prevNoteData.notes.map(n => '<div>- ' + escapeHTML(n) + '</div>').join('') +
+              '</div>' +
+            '</div>'
+          : '';
 
-                  <!-- Actual Reps Logger -->
-                  <div class="flex items-center border border-zinc-800 rounded font-mono">
-                    <button onclick="updateReps('${s.id}', -1)" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">-</button>
-                    <input 
-                      type="number" 
-                      placeholder="-" 
-                      data-reps-id="${s.id}"
-                      data-target-reps="${s.targetReps}"
-                      value="${s.actualReps !== null ? s.actualReps : ''}" 
-                      onfocus="this.select()"
-                      onchange="updateRepsInPlace('${s.id}', this.value === '' ? null : parseInt(this.value, 10))"
-                      class="w-8 bg-transparent text-center text-xs focus:outline-none ${s.actualReps === null ? 'text-zinc-600' : isHit ? 'text-emerald-400 font-medium' : 'text-zinc-200'}"
-                    />
-                    <button onclick="updateReps('${s.id}', 1)" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">+</button>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      `;
+        const badgeHtml = weightDelta > 0
+          ? '<span class="text-[10px] font-mono font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.5 rounded">+' + weightDelta + ' lbs</span>'
+          : '';
+
+        const prevNoteBtn = prevNoteData
+          ? '<button onclick="toggleNotePopup(\'' + popupId + '\')" title="Prior notes" class="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900 touch-btn">!</button>'
+          : '';
+
+        return '' +
+          '<div class="bg-zinc-950 border border-zinc-800/80 rounded relative">' +
+            '<div class="px-3 py-2 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between">' +
+              '<div class="flex items-center gap-2">' +
+                '<span class="text-xs font-medium text-zinc-200">' + escapeHTML(g.exercise) + '</span>' +
+                badgeHtml +
+                '<span class="text-[10px] font-mono text-zinc-500 uppercase">' + escapeHTML(g.workout) + '</span>' +
+                prevNoteBtn +
+              '</div>' +
+              '<div class="flex items-center gap-2">' +
+                '<span class="text-[11px] font-mono text-zinc-500">' + g.sets.length + 's</span>' +
+                '<div class="flex items-center border border-zinc-800 rounded bg-zinc-900 overflow-hidden font-mono text-xs">' +
+                  '<button onclick="addSetToExercise(\'' + escapeHTML(g.exercise) + '\', \'' + escapeHTML(g.workout) + '\')" title="Add set" class="px-2 py-0.5 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 border-r border-zinc-800 transition active:scale-95 touch-btn">+</button>' +
+                  '<button onclick="removeSetFromExercise(\'' + escapeHTML(g.exercise) + '\')" title="Remove set" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition active:scale-95 touch-btn">-</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            prevNoteBlock +
+            '<div class="divide-y divide-zinc-900">' +
+              setsHtml +
+            '</div>' +
+          '</div>';
       }).join('');
     }
 
@@ -960,6 +1074,8 @@
       const tbody = document.getElementById('sheet-table-body');
       tbody.innerHTML = filtered.map(r => {
         const isSelectedDate = r.date === activeDate;
+        const weightDelta = getExerciseWeightDelta(r.exercise, r.date, r.weight);
+
         return `
         <tr class="transition ${isSelectedDate ? 'bg-emerald-950/20 border-l-2 border-emerald-500' : 'hover:bg-zinc-900/40'}">
           <td class="py-1 px-2">
@@ -981,13 +1097,16 @@
             />
           </td>
           <td class="py-1 px-2">
-            <input 
-              type="text" 
-              value="${escapeHTML(r.exercise)}" 
-              onfocus="this.select()"
-              onchange="updateRecordField('${r.id}', 'exercise', this.value)"
-              class="w-full min-w-[150px] bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 font-sans ${isSelectedDate ? 'text-zinc-100 font-medium' : 'text-zinc-200'} text-xs focus:outline-none"
-            />
+            <div class="flex items-center gap-1.5 min-w-[170px]">
+              <input 
+                type="text" 
+                value="${escapeHTML(r.exercise)}" 
+                onfocus="this.select()"
+                onchange="updateRecordField('${r.id}', 'exercise', this.value)"
+                class="w-full bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 font-sans ${isSelectedDate ? 'text-zinc-100 font-medium' : 'text-zinc-200'} text-xs focus:outline-none"
+              />
+              ${weightDelta > 0 ? '<span class="flex-shrink-0 text-[9px] font-mono font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1 py-0.5 rounded">+' + weightDelta + '</span>' : ''}
+            </div>
           </td>
           <td class="py-1 px-2 text-center">
             <input 
@@ -1051,7 +1170,7 @@
       }).join('');
     }
 
-    let selectedExerciseForChart = 'Zercher Squats';
+    let selectedExerciseForChart = 'Weighted Pull-ups';
 
     function calculateStats() {
       const completed = records.filter(r => r.actualReps !== null && r.actualReps > 0);
@@ -1075,7 +1194,7 @@
       completed.forEach(r => {
         if (!BIG_5.includes(r.exercise)) return;
         const ex = r.exercise;
-        const e1rm = Math.round(r.weight * (1 + r.actualReps / 30.0) * 10) / 10;
+        const e1rm = calculateEstimated1RM(ex, r.weight, r.actualReps, r.date);
         
         if (r.weight > prMap[ex].weight || (r.weight === prMap[ex].weight && r.actualReps > prMap[ex].reps)) {
           prMap[ex] = {
@@ -1103,7 +1222,7 @@
         return d >= windowPriorStart && d < windowStart;
       }).forEach(r => {
         if (!BIG_5.includes(r.exercise)) return;
-        const e1rm = Math.round(r.weight * (1 + r.actualReps / 30.0) * 10) / 10;
+        const e1rm = calculateEstimated1RM(r.exercise, r.weight, r.actualReps, r.date);
         if (e1rm > prMapPrior[r.exercise]) prMapPrior[r.exercise] = e1rm;
       });
 
@@ -1293,8 +1412,9 @@
       const viewSheet = document.getElementById('view-sheet');
       const viewStats = document.getElementById('view-stats');
       const searchBox = document.getElementById('search-container');
+      const bwBox = document.getElementById('bw-container'); // ADDED
 
-      [viewGym, viewSheet, viewStats, searchBox].forEach(el => el.classList.add('hidden'));
+      [viewGym, viewSheet, viewStats, searchBox, bwBox].forEach(el => el.classList.add('hidden')); // UPDATED
       [tabGym, tabSheet, tabStats].forEach(btn => {
         btn.className = "px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn";
       });
@@ -1311,6 +1431,8 @@
         renderSheetView();
       } else if (currentMode === 'stats') {
         viewStats.classList.remove('hidden');
+        bwBox.classList.remove('hidden');
+        document.getElementById('input-user-bw').value = getBodyweightForDate(activeDate);
         tabStats.className = "px-3 py-1 rounded text-zinc-100 bg-zinc-800 transition touch-btn";
         calculateStats();
       }
