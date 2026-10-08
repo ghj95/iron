@@ -907,15 +907,21 @@
       }
     };
     
-    function getExerciseWeightDelta(exerciseName, currentDate, currentWeight) {
-      if (!currentWeight || currentWeight <= 0) return 0;
-      
+    function getExerciseWeightDelta(exerciseName, currentDate, currentWeight, currentTargetReps) {
+      if (!currentWeight || currentWeight <= 0 || !currentTargetReps) return 0;
+
+      // Filter to same exercise, strictly earlier date, and comparable target rep range (+/- 3 reps)
       const priorRows = records
-        .filter(r => r.exercise === exerciseName && r.date < currentDate && r.weight > 0)
+        .filter(r => {
+          if (r.exercise !== exerciseName || r.date >= currentDate || r.weight <= 0) return false;
+          const repVariance = Math.abs((r.targetReps || 0) - currentTargetReps);
+          return repVariance <= 3;
+        })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
       if (!priorRows.length) return 0;
 
+      // Identify the most recent matched session date
       const priorDate = priorRows[0].date;
       const priorSessionSets = priorRows.filter(r => r.date === priorDate);
       const priorMaxWeight = Math.max(...priorSessionSets.map(r => r.weight));
@@ -955,7 +961,8 @@
         const popupId = 'note-pop-' + idx;
 
         const currentGroupMaxWeight = Math.max(...g.sets.map(s => s.weight || 0));
-        const weightDelta = getExerciseWeightDelta(g.exercise, activeDate, currentGroupMaxWeight);
+        const dominantTargetReps = g.sets[0] ? g.sets[0].targetReps : 0;
+        const weightDelta = getExerciseWeightDelta(g.exercise, activeDate, currentGroupMaxWeight, dominantTargetReps);
 
         const setsHtml = g.sets.map(s => {
           const isHit = s.actualReps !== null && s.actualReps >= s.targetReps;
@@ -1074,7 +1081,7 @@
       const tbody = document.getElementById('sheet-table-body');
       tbody.innerHTML = filtered.map(r => {
         const isSelectedDate = r.date === activeDate;
-        const weightDelta = getExerciseWeightDelta(r.exercise, r.date, r.weight);
+        const weightDelta = getExerciseWeightDelta(r.exercise, r.date, r.weight, r.targetReps);
 
         return `
         <tr class="transition ${isSelectedDate ? 'bg-emerald-950/20 border-l-2 border-emerald-500' : 'hover:bg-zinc-900/40'}">
