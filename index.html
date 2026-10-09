@@ -146,12 +146,12 @@
     <div id="view-stats" class="hidden space-y-4">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         <div class="bg-zinc-950 border border-zinc-800/80 p-3 rounded">
-          <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Big 5 Total 1RM</div>
+          <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Big 3 Total 1RM</div>
           <div id="metric-b5-now" class="text-base md:text-lg font-mono font-bold text-zinc-100 mt-0.5"></div>
           <div class="text-[10px] font-mono text-zinc-500">current combined</div>
         </div>
         <div class="bg-zinc-950 border border-zinc-800/80 p-3 rounded">
-          <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Big 5 Prior Month</div>
+          <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Big 3 Prior Month</div>
           <div id="metric-b5-past" class="text-base md:text-lg font-mono font-bold text-zinc-300 mt-0.5"></div>
           <div id="metric-b5-delta" class="text-[10px] font-mono text-emerald-400"></div>
         </div>
@@ -170,7 +170,7 @@
       <div class="bg-zinc-950 border border-zinc-800/80 rounded overflow-hidden">
         <div class="px-3.5 py-2.5 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between">
           <div>
-            <div class="text-xs font-medium text-zinc-200">Big 5 PRs</div>
+            <div class="text-xs font-medium text-zinc-200">Big 3</div>
             <div class="text-[11px] font-mono text-zinc-500">Peak wt, reps & estimated 1RM</div>
           </div>
           <span class="text-[10px] font-mono text-zinc-500 uppercase">Core Lifts</span>
@@ -219,10 +219,39 @@
       </div>
       
       <div class="p-4 space-y-3">
+        <!-- Toggles: Wave Loading & Deload -->
+        <div class="grid grid-cols-2 gap-2 pb-1 border-b border-zinc-900">
+          <label class="flex items-center gap-2 p-2 rounded bg-zinc-900/60 border border-zinc-800 cursor-pointer select-none">
+            <input 
+              type="checkbox" 
+              id="toggle-wave-loading" 
+              checked 
+              class="rounded bg-zinc-950 border-zinc-700 text-emerald-500 focus:ring-0 w-3.5 h-3.5"
+            />
+            <div class="flex flex-col">
+              <span class="text-zinc-200 text-[11px] font-semibold">Wave Big 3</span>
+              <span class="text-zinc-500 text-[9px]">5 → 4 → 3 step cycle</span>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-2 p-2 rounded bg-zinc-900/60 border border-zinc-800 cursor-pointer select-none">
+            <input 
+              type="checkbox" 
+              id="toggle-deload" 
+              class="rounded bg-zinc-950 border-zinc-700 text-amber-500 focus:ring-0 w-3.5 h-3.5" 
+              onchange="handleDeloadToggle(this.checked)"
+            />
+            <div class="flex flex-col">
+              <span class="text-zinc-200 text-[11px] font-semibold">Deload Week</span>
+              <span class="text-zinc-500 text-[9px]">-10% load reset</span>
+            </div>
+          </label>
+        </div>
+
         <!-- 1. Global Progression Rate -->
         <div>
           <div class="flex justify-between text-zinc-400 mb-1">
-            <span>Progression Rate</span>
+            <span>Progression Rate (Accessories)</span>
             <span class="text-zinc-200 font-bold" id="val-pct-display">5%</span>
           </div>
           <div class="flex items-center gap-2">
@@ -232,19 +261,19 @@
               id="input-pct-increase" 
               value="5" 
               step="0.5" 
-              min="0" 
+              min="-50" 
               max="50" 
               onfocus="this.select()"
               oninput="document.getElementById('val-pct-display').innerText = this.value + '%'"
               class="w-20 bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-100 text-xs focus:outline-none focus:border-zinc-600"
             />
-            <span class="text-zinc-500 text-[11px]">% (+BW on WPU & WD)</span>
+            <span class="text-zinc-500 text-[11px]">%</span>
           </div>
         </div>
 
-        <!-- 2. Rounding & Minimum Step (Numeric Input) -->
+        <!-- 2. Rounding & Step Increment -->
         <div>
-          <div class="text-zinc-400 mb-1">Plate Rounding</div>
+          <div class="text-zinc-400 mb-1">Plate Rounding / Step Increment</div>
           <div class="flex items-center gap-2">
             <input 
               type="number" 
@@ -285,7 +314,7 @@
         </div>
       </div>
 
-      <!-- 5. Action Controls -->
+      <!-- Action Controls -->
       <div class="px-4 py-3 bg-zinc-900/40 border-t border-zinc-800 flex justify-end gap-2">
         <button onclick="closeModal()" class="px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn">Cancel</button>
         <button onclick="confirmDuplicateWeek()" class="px-3 py-1 rounded bg-zinc-100 text-zinc-950 font-medium hover:bg-white transition active:scale-95 touch-btn">Confirm</button>
@@ -360,12 +389,10 @@
       navigator.storage.persist().catch(() => {});
     }
 
-    const BIG_5 = [
+    const BIG_3 = [
       "Weighted Pull-ups",
       "Weighted Dips",
-      "OHP",
-      "Zercher Squats",
-      "Incline Bench Press"
+      "OHP"
     ];
 
     const CANONICAL_EXERCISE_MAP = {
@@ -557,12 +584,36 @@
       if (modal) modal.classList.remove('hidden');
     }
 
+    window.handleDeloadToggle = function(isDeload) {
+      const pctInput = document.getElementById('input-pct-increase');
+      const pctDisplay = document.getElementById('val-pct-display');
+      const waveCheckbox = document.getElementById('toggle-wave-loading');
+
+      if (isDeload) {
+        if (pctInput) pctInput.value = -10;
+        if (pctDisplay) pctDisplay.innerText = '-10%';
+        if (waveCheckbox) {
+          waveCheckbox.checked = false;
+          waveCheckbox.disabled = true;
+        }
+      } else {
+        if (pctInput) pctInput.value = 5;
+        if (pctDisplay) pctDisplay.innerText = '5%';
+        if (waveCheckbox) {
+          waveCheckbox.checked = true;
+          waveCheckbox.disabled = false;
+        }
+      }
+    };
+
     window.confirmDuplicateWeek = function() {
       const pctInput = document.getElementById('input-pct-increase');
       const roundInput = document.getElementById('input-rounding');
       const daysInput = document.getElementById('input-days-forward');
+      const isDeload = document.getElementById('toggle-deload')?.checked || false;
+      const useWave = document.getElementById('toggle-wave-loading')?.checked || false;
 
-      const pctIncrease = pctInput ? parseFloat(pctInput.value) || 5 : 5;
+      const pctIncrease = pctInput ? parseFloat(pctInput.value) || 0 : 0;
       const roundValRaw = roundInput ? parseFloat(roundInput.value) : 2.5;
       const roundVal = isNaN(roundValRaw) || roundValRaw < 0 ? 0 : roundValRaw;
       const daysFwd = daysInput ? parseInt(daysInput.value, 10) || 7 : 7;
@@ -592,10 +643,46 @@
         const nd = new Date(r.date);
         nd.setDate(nd.getDate() + daysFwd);
         const newDateStr = nd.toISOString().split('T')[0];
+        const isBig3 = BIG_3.includes(r.exercise);
         const canProg = eligibility[r.date + '_' + r.exercise];
 
         let nw = r.weight;
-        if (canProg) {
+        let nextTargetReps = r.targetReps;
+        let noteFlag = '';
+
+        if (isDeload) {
+          const dropPct = Math.abs(pctIncrease) / 100 || 0.10;
+          let rawDrop = r.weight * dropPct;
+          if (CALISTHENICS_EXERCISES.includes(r.exercise)) {
+            const bw = getBodyweightForDate(r.date);
+            rawDrop = (r.weight + bw) * dropPct;
+          }
+          const roundedDrop = roundVal > 0 ? Math.round(rawDrop / roundVal) * roundVal : rawDrop;
+          nw = Math.max(0, r.weight - roundedDrop);
+          noteFlag = 'Deload';
+        } else if (useWave && isBig3) {
+          if (canProg) {
+            const stepInc = roundVal > 0 ? roundVal : 2.5;
+            if (r.targetReps === 5) {
+              nextTargetReps = 4;
+              nw = r.weight + stepInc;
+              progCount++;
+            } else if (r.targetReps === 4) {
+              nextTargetReps = 3;
+              nw = r.weight + stepInc;
+              progCount++;
+            } else if (r.targetReps === 3) {
+              nextTargetReps = 5;
+              nw = Math.max(0, r.weight - stepInc);
+              progCount++;
+            } else {
+              nextTargetReps = 5;
+            }
+          } else {
+            nextTargetReps = r.targetReps;
+            nw = r.weight;
+          }
+        } else if (canProg) {
           const isCalisthenics = CALISTHENICS_EXERCISES.includes(r.exercise);
           let rawIncrease = 0;
 
@@ -624,10 +711,10 @@
           exercise: r.exercise,
           set: r.set,
           weight: nw,
-          targetReps: r.targetReps,
+          targetReps: nextTargetReps,
           actualReps: null,
-          notes: '',
-          isIncreased: canProg
+          notes: noteFlag,
+          isIncreased: canProg && !isDeload
         };
       });
 
@@ -642,7 +729,11 @@
       window.closeModal();
       saveState();
       render();
-      showNotification(`New week generated: ${progCount} sets progressed.`);
+
+      const notifMsg = isDeload 
+        ? `Deload week generated (${pctIncrease}% load).` 
+        : `New week generated: ${progCount} sets progressed.`;
+      showNotification(notifMsg);
     };
 
     function undoLastAction() {
@@ -1240,12 +1331,12 @@
       const yearSessionsSet = new Set(completed.filter(r => new Date(r.date).getFullYear() === currentYear).map(r => r.date));
 
       const prMap = {};
-      BIG_5.forEach(ex => {
+      BIG_3.forEach(ex => {
         prMap[ex] = { exercise: ex, weight: 0, reps: 0, e1rm: 0, date: '-' };
       });
 
       completed.forEach(r => {
-        if (!BIG_5.includes(r.exercise)) return;
+        if (!BIG_3.includes(r.exercise)) return;
         const ex = r.exercise;
         const e1rm = calculateEstimated1RM(ex, r.weight, r.actualReps, r.date);
         
@@ -1262,38 +1353,38 @@
         }
       });
 
-      let big5TotalNow = 0;
-      BIG_5.forEach(ex => {
-        big5TotalNow += prMap[ex].e1rm;
+      let big3TotalNow = 0;
+      BIG_3.forEach(ex => {
+        big3TotalNow += prMap[ex].e1rm;
       });
 
       const prMapPrior = {};
-      BIG_5.forEach(ex => { prMapPrior[ex] = 0; });
+      BIG_3.forEach(ex => { prMapPrior[ex] = 0; });
 
       completed.filter(r => {
         const d = new Date(r.date);
         return d >= windowPriorStart && d < windowStart;
       }).forEach(r => {
-        if (!BIG_5.includes(r.exercise)) return;
+        if (!BIG_3.includes(r.exercise)) return;
         const e1rm = calculateEstimated1RM(r.exercise, r.weight, r.actualReps, r.date);
         if (e1rm > prMapPrior[r.exercise]) prMapPrior[r.exercise] = e1rm;
       });
 
-      let big5TotalPrior = 0;
-      BIG_5.forEach(ex => {
-        big5TotalPrior += prMapPrior[ex];
+      let big3TotalPrior = 0;
+      BIG_3.forEach(ex => {
+        big3TotalPrior += prMapPrior[ex];
       });
 
-      const delta = Math.round(big5TotalNow - big5TotalPrior);
+      const delta = Math.round(big3TotalNow - big3TotalPrior);
 
-      document.getElementById('metric-b5-now').innerText = Math.round(big5TotalNow).toLocaleString() + ' lbs';
-      document.getElementById('metric-b5-past').innerText = Math.round(big5TotalPrior).toLocaleString() + ' lbs';
-      document.getElementById('metric-b5-delta').innerText = delta >= 0 ? `+${delta} lbs (window)` : `${delta} lbs (window)`;
+      document.getElementById('metric-b5-now').innerText = Math.round(big3TotalNow).toLocaleString() + ' lbs';
+      document.getElementById('metric-b5-past').innerText = Math.round(big3TotalPrior).toLocaleString() + ' lbs';
+      document.getElementById('metric-b5-delta').innerText = delta >= 0 ? `+${delta} lbs` : `${delta} lbs`;
       document.getElementById('metric-total-wo').innerText = sessionsSet.size;
       document.getElementById('metric-year-wo').innerText = yearSessionsSet.size;
       document.getElementById('metric-year-label').innerText = `sessions in ${currentYear}`;
 
-      const prList = BIG_5.map(ex => prMap[ex]);
+      const prList = BIG_3.map(ex => prMap[ex]);
       const prTbody = document.getElementById('prs-table-body');
       prTbody.innerHTML = prList.map(p => `
         <tr class="hover:bg-zinc-900/40 transition">
