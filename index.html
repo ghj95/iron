@@ -43,28 +43,36 @@
       </div>
       <div class="flex items-center gap-1.5 sm:gap-2">
         <div class="flex items-center border border-zinc-800 rounded bg-zinc-900 overflow-hidden">
-          <button id="btn-duplicate" title="New Week" class="px-2.5 py-1 text-xs font-mono font-bold text-zinc-100 hover:bg-zinc-800 border-r border-zinc-800 transition active:scale-95 touch-btn">
-            +
+          <button id="btn-duplicate" title="New Week" aria-label="New Week" class="p-1.5 text-zinc-100 hover:bg-zinc-800 border-r border-zinc-800 transition active:scale-95 touch-btn flex items-center justify-center">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
           </button>
-          <button id="btn-undo" title="Undo" class="px-2.5 py-1 text-xs font-mono font-bold text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition active:scale-95 touch-btn">
-            -
+          <button id="btn-undo" title="Undo" aria-label="Undo" class="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition active:scale-95 touch-btn flex items-center justify-center">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7v6h6"/>
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+            </svg>
           </button>
         </div>
 
-        <button id="btn-export" title="Export CSV" aria-label="Export CSV" class="p-1.5 text-zinc-400 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded transition active:scale-95 touch-btn flex items-center justify-center">
+      <div class="flex items-center border border-zinc-800 rounded bg-zinc-900 overflow-hidden">
+        <button id="btn-export" title="Export CSV" aria-label="Export CSV" class="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 border-r border-zinc-800 transition active:scale-95 touch-btn flex items-center justify-center">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
         </button>
-        <label for="csv-file-input" title="Import CSV" aria-label="Import CSV" class="cursor-pointer p-1.5 text-zinc-400 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded transition active:scale-95 touch-btn flex items-center justify-center">
+        <label for="csv-file-input" title="Import CSV" aria-label="Import CSV" class="cursor-pointer p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition active:scale-95 touch-btn flex items-center justify-center">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="17 8 12 3 7 8"/>
             <line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
         </label>
+      </div>
         <input type="file" id="csv-file-input" accept=".csv" class="hidden" onchange="importCSV(event)" />
       </div>
     </div>
