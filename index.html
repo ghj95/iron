@@ -892,14 +892,22 @@
       if (!dates.includes(activeDate) && dates.length > 0) activeDate = dates[0];
       const container = document.getElementById('date-selector');
       container.innerHTML = dates.map(d => {
-        const count = records.filter(r => r.date === d).length;
-        const wType = records.find(r => r.date === d)?.workout || '';
+        const daySets = records.filter(r => r.date === d);
+        const count = daySets.length;
+        const wType = daySets[0]?.workout || '';
         const isSel = d === activeDate;
+
+        const isCompleted = count > 0 && daySets.every(r => r.actualReps !== null);
+        const statusDotClass = isCompleted ? 'bg-emerald-500' : 'bg-amber-500/80';
+
         return `
           <button onclick="setActiveDate('${d}')" class="flex-shrink-0 px-3 py-1.5 rounded text-left border transition touch-btn ${
             isSel ? 'bg-zinc-900 border-zinc-600 text-zinc-100' : 'bg-zinc-950 border-zinc-800/80 text-zinc-500 hover:text-zinc-300'
           }">
-            <div class="text-[11px] font-mono leading-none">${d}</div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full ${statusDotClass}"></span>
+              <span class="text-[11px] font-mono leading-none">${d}</span>
+            </div>
             <div class="text-[10px] font-mono mt-1 flex justify-between gap-3 text-zinc-400">
               <span>${wType}</span>
               <span class="text-zinc-500">${count}s</span>
@@ -944,6 +952,7 @@
           newActual === null ? 'text-zinc-600' : newActual >= targetReps ? 'text-emerald-400 font-medium' : 'text-zinc-200'
         }`;
       }
+      renderDateTabs();
     }
 
     window.updateReps = (id, delta) => {
