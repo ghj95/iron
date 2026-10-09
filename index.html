@@ -211,9 +211,10 @@
       </div>
       
       <div class="p-4 space-y-3">
+        <!-- 1. Global Progression Rate -->
         <div>
           <div class="flex justify-between text-zinc-400 mb-1">
-            <span>Compound Progression</span>
+            <span>Progression Rate</span>
             <span class="text-zinc-200 font-bold" id="val-pct-display">5%</span>
           </div>
           <div class="flex items-center gap-2">
@@ -229,42 +230,30 @@
               oninput="document.getElementById('val-pct-display').innerText = this.value + '%'"
               class="w-20 bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-100 text-xs focus:outline-none focus:border-zinc-600"
             />
-            <span class="text-zinc-500 text-[11px]">% for compound lifts</span>
+            <span class="text-zinc-500 text-[11px]">% (+BW on WPU & WD)</span>
           </div>
         </div>
 
+        <!-- 2. Rounding & Minimum Step (Numeric Input) -->
         <div>
-          <div class="flex justify-between text-zinc-400 mb-1">
-            <span>Isolation Absolute Add</span>
-            <span class="text-zinc-200 font-bold" id="val-iso-display">+2.5 lbs</span>
-          </div>
+          <div class="text-zinc-400 mb-1">Plate Rounding</div>
           <div class="flex items-center gap-2">
             <input 
               type="number" 
               inputmode="decimal"
-              id="input-iso-increase" 
+              id="input-rounding" 
               value="2.5" 
               step="0.5" 
               min="0" 
-              max="20" 
+              max="50" 
               onfocus="this.select()"
-              oninput="document.getElementById('val-iso-display').innerText = '+' + this.value + ' lbs'"
               class="w-20 bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-100 text-xs focus:outline-none focus:border-zinc-600"
             />
-            <span class="text-zinc-500 text-[11px]">lbs for accessory lifts</span>
+            <span class="text-zinc-500 text-[11px]">lbs</span>
           </div>
         </div>
 
-        <div>
-          <div class="text-zinc-400 mb-1">Plate Rounding</div>
-          <select id="input-rounding" class="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 text-xs focus:outline-none focus:border-zinc-600">
-            <option value="2.5" selected>2.5 lbs (Standard Micro)</option>
-            <option value="5.0">5.0 lbs (Standard Plate)</option>
-            <option value="1.0">1.0 lb</option>
-            <option value="0">Raw Decimal (No Rounding)</option>
-          </select>
-        </div>
-
+        <!-- 3. Date Offset -->
         <div>
           <div class="text-zinc-400 mb-1">Date Offset</div>
           <div class="flex items-center gap-2">
@@ -283,10 +272,12 @@
           </div>
         </div>
 
+        <!-- Summary Block -->
         <div id="modal-qualify-summary" class="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded text-[11px] text-zinc-400 space-y-1">
         </div>
       </div>
 
+      <!-- 5. Action Controls -->
       <div class="px-4 py-3 bg-zinc-900/40 border-t border-zinc-800 flex justify-end gap-2">
         <button onclick="closeModal()" class="px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn">Cancel</button>
         <button onclick="confirmDuplicateWeek()" class="px-3 py-1 rounded bg-zinc-100 text-zinc-950 font-medium hover:bg-white transition active:scale-95 touch-btn">Confirm</button>
@@ -502,9 +493,17 @@
       return records.filter(r => blockDates.has(r.date));
     }
 
+    window.closeModal = function() {
+      const modal = document.getElementById('modal-new-week');
+      if (modal) modal.classList.add('hidden');
+    };
+
     function openNewWeekModal() {
       const currentWeek = getLatestWeekRecords();
-      if (!currentWeek.length) return;
+      if (!currentWeek.length) {
+        showNotification('No existing workout data to duplicate.');
+        return;
+      }
 
       const groups = {};
       currentWeek.forEach(r => {
@@ -521,7 +520,8 @@
         const baseW = sets[0].weight;
         const uniformW = sets.every(s => s.weight === baseW);
         const metTarget = sets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
-        if (uniformW && metTarget && baseW > 0) qualifiedExercises++;
+        const isCalisthenics = CALISTHENICS_EXERCISES.includes(sets[0].exercise);
+        if (uniformW && metTarget && (baseW > 0 || isCalisthenics)) qualifiedExercises++;
       });
 
       const dates = Array.from(new Set(currentWeek.map(r => r.date))).sort();
@@ -529,32 +529,35 @@
       const maxDate = dates[dates.length - 1];
 
       const summaryEl = document.getElementById('modal-qualify-summary');
-      summaryEl.innerHTML = `
-        <div class="flex justify-between text-zinc-300">
-          <span>Source Block</span>
-          <span class="text-zinc-400 font-mono">${minDate} → ${maxDate}</span>
-        </div>
-        <div class="flex justify-between text-zinc-300">
-          <span>Qualified Lifts</span>
-          <span class="text-emerald-400 font-bold">${qualifiedExercises} / ${totalExercises}</span>
-        </div>
-        <div class="text-[10px] text-zinc-500 pt-1">
-          Sets with varied weights or missed targets retain current weight.
-        </div>
-      `;
+      if (summaryEl) {
+        summaryEl.innerHTML = `
+          <div class="flex justify-between text-zinc-300">
+            <span>Source Block</span>
+            <span class="text-zinc-400 font-mono">${minDate} → ${maxDate}</span>
+          </div>
+          <div class="flex justify-between text-zinc-300">
+            <span>Qualified Movements</span>
+            <span class="text-emerald-400 font-bold">${qualifiedExercises} / ${totalExercises}</span>
+          </div>
+          <div class="text-[10px] text-zinc-500 pt-1">
+            Sets with varied weights or missed targets retain current weight.
+          </div>
+        `;
+      }
 
-      document.getElementById('modal-new-week').classList.remove('hidden');
+      const modal = document.getElementById('modal-new-week');
+      if (modal) modal.classList.remove('hidden');
     }
 
-    window.closeModal = () => {
-      document.getElementById('modal-new-week').classList.add('hidden');
-    };
+    window.confirmDuplicateWeek = function() {
+      const pctInput = document.getElementById('input-pct-increase');
+      const roundInput = document.getElementById('input-rounding');
+      const daysInput = document.getElementById('input-days-forward');
 
-    function confirmDuplicateWeek() {
-      const compoundPct = parseFloat(document.getElementById('input-pct-increase').value) || 5;
-      const isoStep = parseFloat(document.getElementById('input-iso-increase').value) || 2.5;
-      const roundVal = parseFloat(document.getElementById('input-rounding').value);
-      const daysFwd = parseInt(document.getElementById('input-days-forward').value, 10) || 7;
+      const pctIncrease = pctInput ? parseFloat(pctInput.value) || 5 : 5;
+      const roundValRaw = roundInput ? parseFloat(roundInput.value) : 2.5;
+      const roundVal = isNaN(roundValRaw) || roundValRaw < 0 ? 0 : roundValRaw;
+      const daysFwd = daysInput ? parseInt(daysInput.value, 10) || 7 : 7;
 
       const currentWeek = getLatestWeekRecords();
       if (!currentWeek.length) return;
@@ -572,7 +575,8 @@
         const baseW = sets[0].weight;
         const uniformW = sets.every(s => s.weight === baseW);
         const metTarget = sets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
-        eligibility[k] = uniformW && metTarget && baseW > 0;
+        const isCalisthenics = CALISTHENICS_EXERCISES.includes(sets[0].exercise);
+        eligibility[k] = uniformW && metTarget && (baseW > 0 || isCalisthenics);
       });
 
       let progCount = 0;
@@ -584,13 +588,23 @@
 
         let nw = r.weight;
         if (canProg) {
-          const isCompound = BIG_5.includes(r.exercise) || r.exercise.includes('Press') || r.exercise.includes('Squat') || r.exercise.includes('Deadlift') || r.exercise.includes('Row');
-          const raw = isCompound ? r.weight * (1 + compoundPct / 100) : r.weight + isoStep;
+          const isCalisthenics = CALISTHENICS_EXERCISES.includes(r.exercise);
+          let rawIncrease = 0;
+
+          if (isCalisthenics) {
+            const bw = getBodyweightForDate(r.date);
+            const totalMass = r.weight + bw;
+            rawIncrease = totalMass * (pctIncrease / 100);
+          } else {
+            rawIncrease = r.weight * (pctIncrease / 100);
+          }
 
           if (roundVal > 0) {
-            nw = Math.round(raw / roundVal) * roundVal;
+            const roundedDelta = Math.round(rawIncrease / roundVal) * roundVal;
+            const finalDelta = Math.max(roundVal, roundedDelta);
+            nw = r.weight + finalDelta;
           } else {
-            nw = parseFloat(raw.toFixed(1));
+            nw = parseFloat((r.weight + rawIncrease).toFixed(1));
           }
           progCount++;
         }
@@ -617,11 +631,11 @@
 
       records = [...newWeek, ...records];
       activeDate = newWeek[0].date;
-      closeModal();
+      window.closeModal();
       saveState();
       render();
       showNotification(`New week generated: ${progCount} sets progressed.`);
-    }
+    };
 
     function undoLastAction() {
       if (!historyStack.length) {
