@@ -88,6 +88,10 @@
       <button id="tab-sheet" class="px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn">Table</button>
       <button id="tab-stats" class="px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn">Stats</button>
     </div>
+
+    <!-- Weekly Sets Indicator (visible in Log tab) -->
+    <div id="weekly-set-badge" class="font-mono text-[11px] text-zinc-400"></div>
+
     <div id="search-container" class="hidden">
       <input 
         type="text" 
@@ -389,6 +393,25 @@
       navigator.storage.persist().catch(() => {});
     }
 
+    function updateWeeklyBadge() {
+      const badge = document.getElementById('weekly-set-badge');
+      if (!badge) return;
+
+      const targetDate = activeDate ? new Date(activeDate) : new Date();
+      const weekSets = records.filter(r => {
+        const diff = (targetDate - new Date(r.date)) / (1000 * 60 * 60 * 24);
+        return diff >= 0 && diff <= 6;
+      });
+
+      const totalWeekSets = weekSets.length;
+      const completedWeekSets = weekSets.filter(r => r.actualReps !== null).length;
+
+      badge.innerHTML = `
+        <span class="text-zinc-500 text-[10px] uppercase tracking-wider mr-1"></span>
+        <span class="${completedWeekSets === totalWeekSets && totalWeekSets > 0 ? 'text-emerald-400' : 'text-zinc-200'} font-medium">${completedWeekSets}</span><span class="text-zinc-600">/${totalWeekSets}</span>
+      `;
+    }
+
     const BIG_3 = [
       "Weighted Pull-ups",
       "Weighted Dips",
@@ -503,6 +526,7 @@
         } catch (err) {}
       }
       updateBadge();
+      updateWeeklyBadge();
     }
 
     function updateBadge() {
@@ -953,6 +977,7 @@
         }`;
       }
       renderDateTabs();
+      updateWeeklyBadge();
     }
 
     window.updateReps = (id, delta) => {
@@ -1593,6 +1618,8 @@
 
     function render() {
       updateBadge();
+      updateWeeklyBadge();
+
       const tabGym = document.getElementById('tab-gym');
       const tabSheet = document.getElementById('tab-sheet');
       const tabStats = document.getElementById('tab-stats');
@@ -1601,15 +1628,17 @@
       const viewSheet = document.getElementById('view-sheet');
       const viewStats = document.getElementById('view-stats');
       const searchBox = document.getElementById('search-container');
-      const bwBox = document.getElementById('bw-container'); // ADDED
+      const bwBox = document.getElementById('bw-container');
+      const weeklyBadge = document.getElementById('weekly-set-badge');
 
-      [viewGym, viewSheet, viewStats, searchBox, bwBox].forEach(el => el.classList.add('hidden')); // UPDATED
+      [viewGym, viewSheet, viewStats, searchBox, bwBox, weeklyBadge].forEach(el => el.classList.add('hidden'));
       [tabGym, tabSheet, tabStats].forEach(btn => {
         btn.className = "px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn";
       });
 
       if (currentMode === 'gym') {
         viewGym.classList.remove('hidden');
+        weeklyBadge.classList.remove('hidden');
         tabGym.className = "px-3 py-1 rounded text-zinc-100 bg-zinc-800 transition touch-btn";
         renderDateTabs();
         renderGymView();
