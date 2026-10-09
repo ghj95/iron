@@ -1314,7 +1314,8 @@
       }).join('');
     }
 
-    let selectedExerciseForChart = 'Weighted Pull-ups';
+    const TOTAL_BIG_3_OPTION = 'Big 3 Total (1RM)';
+    let selectedExerciseForChart = TOTAL_BIG_3_OPTION;
 
     function calculateStats() {
       const completed = records.filter(r => r.actualReps !== null && r.actualReps > 0);
@@ -1407,11 +1408,14 @@
       `).join('');
 
       const allUniqueExercises = Array.from(new Set(completed.map(r => r.exercise))).sort();
+      const exerciseOptions = [TOTAL_BIG_3_OPTION, ...allUniqueExercises];
       const select = document.getElementById('stats-exercise-select');
-      if (!allUniqueExercises.includes(selectedExerciseForChart) && allUniqueExercises.length > 0) {
-        selectedExerciseForChart = allUniqueExercises[0];
+
+      if (!exerciseOptions.includes(selectedExerciseForChart) && exerciseOptions.length > 0) {
+        selectedExerciseForChart = TOTAL_BIG_3_OPTION;
       }
-      select.innerHTML = allUniqueExercises.map(ex => `
+
+      select.innerHTML = exerciseOptions.map(ex => `
         <option value="${escapeHTML(ex)}" ${ex === selectedExerciseForChart ? 'selected' : ''}>${escapeHTML(ex)}</option>
       `).join('');
 
@@ -1425,19 +1429,52 @@
       if (select && select.value) selectedExerciseForChart = select.value;
       const ex = selectedExerciseForChart;
       const container = document.getElementById('chart-strength-container');
+      const isBig3Aggregate = (ex === TOTAL_BIG_3_OPTION);
 
-      const completedEx = records
-        .filter(r => r.exercise === ex && r.actualReps !== null && r.actualReps > 0)
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      let points = [];
 
-      const dateMap = {};
-      completedEx.forEach(r => {
-        if (!dateMap[r.date] || r.weight > dateMap[r.date]) {
-          dateMap[r.date] = r.weight;
-        }
-      });
+      if (isBig3Aggregate) {
+        // Collect all dates chronologically where any completed sets exist
+        const allCompleted = records
+          .filter(r => r.actualReps !== null && r.actualReps > 0)
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      const points = Object.keys(dateMap).map(d => ({ date: d, weight: dateMap[d] }));
+        const chronologicalDates = Array.from(new Set(allCompleted.map(r => r.date))).sort();
+        const bestE1rmSoFar = {};
+        BIG_3.forEach(b => bestE1rmSoFar[b] = 0);
+
+        chronologicalDates.forEach(d => {
+          const setsOnDate = allCompleted.filter(r => r.date === d && BIG_3.includes(r.exercise));
+          let changed = false;
+
+          setsOnDate.forEach(s => {
+            const e1rm = calculateEstimated1RM(s.exercise, s.weight, s.actualReps, s.date);
+            if (e1rm > bestE1rmSoFar[s.exercise]) {
+              bestE1rmSoFar[s.exercise] = e1rm;
+              changed = true;
+            }
+          });
+
+          // Only plot dates where total sum has non-zero contributions
+          const totalSum = BIG_3.reduce((acc, k) => acc + bestE1rmSoFar[k], 0);
+          if (totalSum > 0 && (changed || points.length === 0)) {
+            points.push({ date: d, weight: totalSum });
+          }
+        });
+      } else {
+        const completedEx = records
+          .filter(r => r.exercise === ex && r.actualReps !== null && r.actualReps > 0)
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        const dateMap = {};
+        completedEx.forEach(r => {
+          if (!dateMap[r.date] || r.weight > dateMap[r.date]) {
+            dateMap[r.date] = r.weight;
+          }
+        });
+
+        points = Object.keys(dateMap).sort().map(d => ({ date: d, weight: dateMap[d] }));
+      }
 
       if (points.length < 2) {
         container.innerHTML = '<div class="h-full flex items-center justify-center text-zinc-600 text-xs font-mono">Not enough historical data points for this lift yet.</div>';
@@ -1445,8 +1482,8 @@
       }
 
       const weights = points.map(p => p.weight);
-      const minW = Math.max(0, Math.min(...weights) - 10);
-      const maxW = Math.max(...weights) + 10;
+      const minW = Math.max(0, Math.min(...weights) - (isBig3Aggregate ? 25 : 10));
+      const maxW = Math.max(...weights) + (isBig3Aggregate ? 25 : 10);
       const rangeW = maxW - minW || 1;
 
       const W = 700;
@@ -1488,14 +1525,12 @@
             <circle cx="${pt.x}" cy="${pt.y}" r="3" fill="#09090b" stroke="#10b981" stroke-width="2"/>
           `).join('')}
 
-          <!-- Dynamic Scrubber crosshair -->
           <g id="chart-scrubber" class="hidden pointer-events-none">
             <line id="scrub-line" x1="0" y1="${padY}" x2="0" y2="${H - padY}" stroke="#52525b" stroke-width="1" stroke-dasharray="2 2" />
             <circle id="scrub-pt" cx="0" cy="0" r="4.5" fill="#10b981" stroke="#09090b" stroke-width="2" />
           </g>
         </svg>
 
-        <!-- Tooltip overlay floating bubble -->
         <div id="chart-tooltip" class="hidden absolute pointer-events-none bg-zinc-900 border border-zinc-700 text-zinc-100 rounded px-2 py-1 font-mono text-[10px] shadow-lg transform -translate-x-1/2 -translate-y-8">
         </div>
       `;
@@ -1530,7 +1565,8 @@
         const screenX = (closest.x / W) * rect.width;
         const screenY = (closest.y / H) * rect.height;
 
-        tooltip.innerHTML = `<span class="text-emerald-400 font-bold">${closest.weight} lbs</span> · ${closest.date.slice(5)}`;
+        const labelSuffix = isBig3Aggregate ? 'Total' : 'lbs';
+        tooltip.innerHTML = `<span class="text-emerald-400 font-bold">${closest.weight} lbs</span> · ${labelSuffix} (${closest.date.slice(5)})`;
         tooltip.style.left = screenX + 'px';
         tooltip.style.top = screenY + 'px';
         tooltip.classList.remove('hidden');
