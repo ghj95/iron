@@ -1075,7 +1075,7 @@
         .filter(r => {
           if (r.exercise !== exerciseName || r.date >= currentDate || r.weight <= 0) return false;
           const repVariance = Math.abs((r.targetReps || 0) - currentTargetReps);
-          return repVariance <= 3;
+          return repVariance <= 2;
         })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
