@@ -397,18 +397,31 @@
       const badge = document.getElementById('weekly-set-badge');
       if (!badge) return;
 
-      const targetDate = activeDate ? new Date(activeDate) : new Date();
-      const weekSets = records.filter(r => {
-        const diff = (targetDate - new Date(r.date)) / (1000 * 60 * 60 * 24);
-        return diff >= 0 && diff <= 6;
-      });
+      const dates = getUniqueDates().slice(0, 10);
+      if (!dates.length) return;
 
-      const totalWeekSets = weekSets.length;
-      const completedWeekSets = weekSets.filter(r => r.actualReps !== null).length;
+      // Split into two 5-session blocks:
+      // Newest 5: dates.slice(0, 5)
+      // Oldest 5: dates.slice(5, 10)
+      const clickedIdx = dates.indexOf(activeDate);
+      const isOldBlock = clickedIdx >= 5;
+
+      const targetDates = isOldBlock
+        ? dates.slice(5, 10)
+        : dates.slice(0, Math.min(5, dates.length));
+
+      const targetSet = new Set(targetDates);
+      const blockRecords = records.filter(r => targetSet.has(r.date));
+
+      const totalBlockSets = blockRecords.length;
+      const completedBlockSets = blockRecords.filter(r => r.actualReps !== null).length;
+
+      const label = isOldBlock ? 'Prev Wk' : 'Wk';
+      const isAllDone = completedBlockSets === totalBlockSets && totalBlockSets > 0;
 
       badge.innerHTML = `
-        <span class="text-zinc-500 text-[10px] uppercase tracking-wider mr-1"></span>
-        <span class="${completedWeekSets === totalWeekSets && totalWeekSets > 0 ? 'text-emerald-400' : 'text-zinc-200'} font-medium">${completedWeekSets}</span><span class="text-zinc-600">/${totalWeekSets}</span>
+        <span class="text-zinc-500 text-[10px] uppercase tracking-wider mr-1">${label}</span>
+        <span class="${isAllDone ? 'text-emerald-400' : 'text-zinc-200'} font-medium">${completedBlockSets}</span><span class="text-zinc-600">/${totalBlockSets}</span>
       `;
     }
 
