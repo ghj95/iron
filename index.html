@@ -523,7 +523,10 @@
     let currentMode = 'gym';
     const todayStr = getTodayString();
     const availableDates = getUniqueDates();
-    let activeDate = availableDates.includes(todayStr) ? todayStr : (availableDates[0] || todayStr);
+    const nextPlannedDate = [...availableDates].reverse().find(d => d > todayStr);
+    let activeDate = availableDates.includes(todayStr) 
+      ? todayStr 
+      : (nextPlannedDate || availableDates[0] || todayStr);
     let searchFilter = '';
 
     function saveState() {
