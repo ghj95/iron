@@ -29,10 +29,14 @@
     input[type=number] {
       -moz-appearance: textfield;
     }
+    input, select, textarea {
+      -webkit-user-select: auto !important;
+      user-select: auto !important;
+    }
     .touch-btn { touch-action: manipulation; }
   </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased select-none sm:select-auto pb-safe">
+<body class="min-h-screen flex flex-col antialiased pb-safe">
   <!-- Top Navigation / Header -->
   <header class="border-b border-zinc-800/80 bg-zinc-950/80 px-3 sm:px-4 py-2.5">
     <div class="max-w-5xl mx-auto flex items-center justify-between">
@@ -82,11 +86,12 @@
   <div id="notification-bar" class="hidden bg-zinc-900 border-b border-zinc-800 text-zinc-300 px-4 py-1.5 text-center text-xs font-mono"></div>
 
   <!-- Mode Switcher & Filter -->
-  <div class="max-w-5xl w-full mx-auto px-3 sm:px-4 pt-3 flex items-center justify-between gap-2">
-    <div class="flex bg-zinc-900/80 p-0.5 rounded border border-zinc-800 text-xs font-mono">
-      <button id="tab-gym" class="px-3 py-1 rounded text-zinc-100 bg-zinc-800 transition touch-btn">Log</button>
-      <button id="tab-sheet" class="px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn">Table</button>
-      <button id="tab-stats" class="px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn">Stats</button>
+    <div class="max-w-5xl w-full mx-auto px-3 sm:px-4 pt-3 flex items-center justify-between gap-2">
+      <div class="flex bg-zinc-900/80 p-0.5 rounded border border-zinc-800 text-xs font-mono">
+        <button id="tab-gym" class="px-3 py-1 rounded text-zinc-100 bg-zinc-800 transition touch-btn">Log</button>
+        <button id="tab-sheet" class="px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn">Table</button>
+        <button id="tab-stats" class="px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn">Stats</button>
+        <button id="tab-plan" class="px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn">Plan</button>
     </div>
 
     <!-- Weekly Sets Indicator (visible in Log tab) -->
@@ -206,6 +211,19 @@
         </div>
         <div id="chart-strength-container" class="w-full h-52 md:h-60 relative select-none"></div>
       </div>
+    </div>
+
+    <!-- Plan View -->
+    <div id="view-plan" class="hidden space-y-4">
+      <div class="flex items-center justify-between pb-2.5 border-b border-zinc-800/80">
+        <div>
+          <div class="text-xs font-medium text-zinc-200">Weekly Template</div>
+        </div>
+        <button onclick="addTemplateDay()" class="px-2.5 py-1 text-[11px] font-mono rounded bg-zinc-100 text-zinc-950 font-medium hover:bg-white transition touch-btn">
+          + Day
+        </button>
+      </div>
+      <div id="plan-day-list" class="space-y-4"></div>
     </div>
   </main>
 
@@ -330,6 +348,113 @@
     const STORAGE_KEY_PROD = 'iron_vault_prod';
     const HISTORY_KEY_PROD = 'iron_vault_history';
     const BW_HISTORY_KEY = 'iron_vault_bw_history';
+    const TEMPLATE_KEY_PROD = 'iron_vault_template';
+
+    const DEFAULT_TEMPLATE = [
+      {
+        dayIndex: 0, // Monday
+        workout: "Light Pull",
+        exercises: [
+          { exercise: "Weighted Pull-ups", sets: 3, targetReps: 8 },
+          { exercise: "Barbell Rows", sets: 3, targetReps: 8 },
+          { exercise: "Face Pulls", sets: 3, targetReps: 12 },
+          { exercise: "Incline DB Curls", sets: 3, targetReps: 12 }
+        ]
+      },
+      {
+        dayIndex: 1, // Tuesday
+        workout: "Dip Push",
+        exercises: [
+          { exercise: "Weighted Dips", sets: 3, targetReps: 5 },
+          { exercise: "OHP", sets: 3, targetReps: 8 },
+          { exercise: "Incline Bench Press", sets: 3, targetReps: 8 }
+        ]
+      },
+      {
+        dayIndex: 2, // Wednesday
+        workout: "Legs",
+        exercises: [
+          { exercise: "Zercher Squats", sets: 3, targetReps: 8 },
+          { exercise: "Romanian Deadlifts", sets: 3, targetReps: 12 },
+          { exercise: "Standing Calf Raises", sets: 3, targetReps: 20 },
+          { exercise: "Leg Extension", sets: 3, targetReps: 12 }
+        ]
+      },
+      {
+        dayIndex: 3, // Thursday
+        workout: "Heavy Pull",
+        exercises: [
+          { exercise: "Weighted Pull-ups", sets: 3, targetReps: 5 },
+          { exercise: "Barbell Rows", sets: 3, targetReps: 8 },
+          { exercise: "Face Pulls", sets: 3, targetReps: 12 },
+          { exercise: "Incline DB Curls", sets: 3, targetReps: 12 }
+        ]
+      },
+      {
+        dayIndex: 4, // Friday
+        workout: "OHP Push",
+        exercises: [
+          { exercise: "OHP", sets: 3, targetReps: 5 },
+          { exercise: "Weighted Dips", sets: 3, targetReps: 8 },
+          { exercise: "Incline Bench Press", sets: 3, targetReps: 8 }
+        ]
+      }
+    ];
+
+    let templatePlan = (() => {
+      try {
+        const saved = localStorage.getItem(TEMPLATE_KEY_PROD);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length >= 5) return parsed;
+        }
+      } catch (e) {}
+      return DEFAULT_TEMPLATE;
+    })();
+
+    function saveTemplate() {
+      localStorage.setItem(TEMPLATE_KEY_PROD, JSON.stringify(templatePlan));
+    }
+
+    window.resetTemplateFromHistory = () => {
+      const dates = getUniqueDates().slice(0, 5);
+      if (!dates.length) return;
+
+      const newPlan = [];
+      const distinctWorkouts = Array.from(new Set(dates.map(d => records.find(r => r.date === d)?.workout))).filter(Boolean);
+
+      distinctWorkouts.forEach((wType, idx) => {
+        const sampleDate = dates.find(d => records.some(r => r.date === d && r.workout === wType));
+        const dayRows = records.filter(r => r.date === sampleDate);
+
+        const exercises = [];
+        const seenEx = new Set();
+        dayRows.forEach(r => {
+          if (!seenEx.has(r.exercise)) {
+            seenEx.add(r.exercise);
+            const exSets = dayRows.filter(s => s.exercise === r.exercise);
+            exercises.push({
+              exercise: r.exercise,
+              sets: exSets.length,
+              targetReps: exSets[0].targetReps || 10
+            });
+          }
+        });
+
+        newPlan.push({
+          dayIndex: Math.min(4, idx * 2),
+          workout: wType,
+          exercises: exercises
+        });
+      });
+
+      if (newPlan.length > 0) {
+        templatePlan = newPlan;
+        saveTemplate();
+        renderPlanView();
+        showNotification('Template synced from latest logged workouts.');
+      }
+    };
 
     let bwHistory = (() => {
       try {
@@ -573,49 +698,66 @@
       if (modal) modal.classList.add('hidden');
     };
 
+    function getNextMonday(referenceDateStr) {
+      const ref = referenceDateStr ? new Date(referenceDateStr + 'T00:00:00') : new Date();
+      const day = ref.getDay(); // 0 is Sunday, 1 is Monday
+      let daysUntilNextMon = ((1 - day + 7) % 7);
+      if (daysUntilNextMon === 0) daysUntilNextMon = 7;
+      ref.setDate(ref.getDate() + daysUntilNextMon);
+      return ref.toISOString().split('T')[0];
+    }
+
+    function getMostRecentExerciseSets(exerciseName) {
+      const matching = records
+        .filter(r => r.exercise === exerciseName)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      if (!matching.length) return [];
+      const latestDate = matching[0].date;
+      return matching.filter(r => r.date === latestDate);
+    }
+
     function openNewWeekModal() {
-      const currentWeek = getLatestWeekRecords();
-      if (!currentWeek.length) {
-        showNotification('No existing workout data to duplicate.');
+      if (!templatePlan.length) {
+        showNotification('No template available. Set up routine in Plan tab.');
         return;
       }
 
-      const groups = {};
-      currentWeek.forEach(r => {
-        const k = r.date + '_' + r.exercise;
-        if (!groups[k]) groups[k] = [];
-        groups[k].push(r);
+      const uniqueTemplateExercises = Array.from(new Set(
+        templatePlan.flatMap(d => d.exercises.map(e => e.exercise))
+      ));
+
+      let qualifiedCount = 0;
+      uniqueTemplateExercises.forEach(ex => {
+        const lastSets = getMostRecentExerciseSets(ex);
+        if (lastSets.length > 0) {
+          const baseW = lastSets[0].weight;
+          const uniformW = lastSets.every(s => s.weight === baseW);
+          const metTarget = lastSets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
+          const isCalisthenics = CALISTHENICS_EXERCISES.includes(ex);
+          if (uniformW && metTarget && (baseW > 0 || isCalisthenics)) qualifiedCount++;
+        }
       });
 
-      let qualifiedExercises = 0;
-      const totalExercises = Object.keys(groups).length;
-
-      Object.keys(groups).forEach(k => {
-        const sets = groups[k];
-        const baseW = sets[0].weight;
-        const uniformW = sets.every(s => s.weight === baseW);
-        const metTarget = sets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
-        const isCalisthenics = CALISTHENICS_EXERCISES.includes(sets[0].exercise);
-        if (uniformW && metTarget && (baseW > 0 || isCalisthenics)) qualifiedExercises++;
-      });
-
-      const dates = Array.from(new Set(currentWeek.map(r => r.date))).sort();
-      const minDate = dates[0];
-      const maxDate = dates[dates.length - 1];
+      const dates = getUniqueDates();
+      const anchorMonday = getNextMonday(dates[0]);
 
       const summaryEl = document.getElementById('modal-qualify-summary');
       if (summaryEl) {
         summaryEl.innerHTML = `
           <div class="flex justify-between text-zinc-300">
-            <span>Source Block</span>
-            <span class="text-zinc-400 font-mono">${minDate} → ${maxDate}</span>
+            <span>Next Target Monday</span>
+            <span class="text-zinc-200 font-mono font-bold">${anchorMonday}</span>
+          </div>
+          <div class="flex justify-between text-zinc-300">
+            <span>Template Exercises</span>
+            <span class="text-zinc-400 font-mono">${uniqueTemplateExercises.length} movements (${templatePlan.length} days)</span>
           </div>
           <div class="flex justify-between text-zinc-300">
             <span>Qualified Movements</span>
-            <span class="text-emerald-400 font-bold">${qualifiedExercises} / ${totalExercises}</span>
+            <span class="text-emerald-400 font-bold">${qualifiedCount} / ${uniqueTemplateExercises.length}</span>
           </div>
           <div class="text-[10px] text-zinc-500 pt-1">
-            Missed targets retain current weight.
+            New exercises default to 0 lbs.
           </div>
         `;
       }
@@ -649,114 +791,125 @@
     window.confirmDuplicateWeek = function() {
       const pctInput = document.getElementById('input-pct-increase');
       const roundInput = document.getElementById('input-rounding');
-      const daysInput = document.getElementById('input-days-forward');
       const isDeload = document.getElementById('toggle-deload')?.checked || false;
       const useWave = document.getElementById('toggle-wave-loading')?.checked || false;
 
       const pctIncrease = pctInput ? parseFloat(pctInput.value) || 0 : 0;
       const roundValRaw = roundInput ? parseFloat(roundInput.value) : 2.5;
       const roundVal = isNaN(roundValRaw) || roundValRaw < 0 ? 0 : roundValRaw;
-      const daysFwd = daysInput ? parseInt(daysInput.value, 10) || 7 : 7;
 
-      const currentWeek = getLatestWeekRecords();
-      if (!currentWeek.length) return;
+      if (!templatePlan.length) return;
 
-      const groups = {};
-      currentWeek.forEach(r => {
-        const k = r.date + '_' + r.exercise;
-        if (!groups[k]) groups[k] = [];
-        groups[k].push(r);
-      });
-
-      const eligibility = {};
-      Object.keys(groups).forEach(k => {
-        const sets = groups[k];
-        const baseW = sets[0].weight;
-        const uniformW = sets.every(s => s.weight === baseW);
-        const metTarget = sets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
-        const isCalisthenics = CALISTHENICS_EXERCISES.includes(sets[0].exercise);
-        eligibility[k] = uniformW && metTarget && (baseW > 0 || isCalisthenics);
-      });
+      const dates = getUniqueDates();
+      const anchorMondayStr = getNextMonday(dates[0]);
+      const anchorMonday = new Date(anchorMondayStr + 'T00:00:00');
 
       let progCount = 0;
-      const newWeek = currentWeek.map(r => {
-        const nd = new Date(r.date);
-        nd.setDate(nd.getDate() + daysFwd);
-        const newDateStr = nd.toISOString().split('T')[0];
-        const isBig3 = BIG_3.includes(r.exercise);
-        const canProg = eligibility[r.date + '_' + r.exercise];
+      const newWeekRecords = [];
 
-        let nw = r.weight;
-        let nextTargetReps = r.targetReps;
-        let noteFlag = '';
+      templatePlan.forEach(day => {
+        const sessionDate = new Date(anchorMonday);
+        sessionDate.setDate(sessionDate.getDate() + (day.dayIndex || 0));
+        const sessionDateStr = sessionDate.toISOString().split('T')[0];
 
-        if (isDeload) {
-          const dropPct = Math.abs(pctIncrease) / 100 || 0.10;
-          let rawDrop = r.weight * dropPct;
-          if (CALISTHENICS_EXERCISES.includes(r.exercise)) {
-            const bw = getBodyweightForDate(r.date);
-            rawDrop = (r.weight + bw) * dropPct;
+        day.exercises.forEach(exItem => {
+          const exerciseName = normalizeExerciseName(exItem.exercise);
+          const lastSets = getMostRecentExerciseSets(exerciseName);
+          const isBig3 = BIG_3.includes(exerciseName);
+
+          let baseW = 0.0;
+          let canProg = false;
+          let currentTargetReps = exItem.targetReps || 10;
+
+          if (lastSets.length > 0) {
+            baseW = lastSets[0].weight;
+            currentTargetReps = lastSets[0].targetReps || currentTargetReps;
+            const uniformW = lastSets.every(s => s.weight === baseW);
+            const metTarget = lastSets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
+            const isCalisthenics = CALISTHENICS_EXERCISES.includes(exerciseName);
+            canProg = uniformW && metTarget && (baseW > 0 || isCalisthenics);
           }
-          const roundedDrop = roundVal > 0 ? Math.round(rawDrop / roundVal) * roundVal : rawDrop;
-          nw = Math.max(0, r.weight - roundedDrop);
-          noteFlag = 'Deload';
-        } else if (useWave && isBig3) {
-          if (canProg) {
-            const stepInc = roundVal > 0 ? roundVal : 2.5;
-            if (r.targetReps === 5) {
-              nextTargetReps = 4;
-              nw = r.weight + stepInc;
-              progCount++;
-            } else if (r.targetReps === 4) {
-              nextTargetReps = 3;
-              nw = r.weight + stepInc;
-              progCount++;
-            } else if (r.targetReps === 3) {
-              nextTargetReps = 5;
-              nw = Math.max(0, r.weight - stepInc);
-              progCount++;
-            } else {
-              nextTargetReps = 5;
+
+          let nw = baseW;
+          let nextTargetReps = currentTargetReps;
+          let noteFlag = '';
+
+          if (isDeload) {
+            const dropPct = Math.abs(pctIncrease) / 100 || 0.10;
+            let rawDrop = baseW * dropPct;
+            if (CALISTHENICS_EXERCISES.includes(exerciseName)) {
+              const bw = getBodyweightForDate(sessionDateStr);
+              rawDrop = (baseW + bw) * dropPct;
             }
-          } else {
-            nextTargetReps = r.targetReps;
-            nw = r.weight;
-          }
-        } else if (canProg) {
-          const isCalisthenics = CALISTHENICS_EXERCISES.includes(r.exercise);
-          let rawIncrease = 0;
+            const roundedDrop = roundVal > 0 ? Math.round(rawDrop / roundVal) * roundVal : rawDrop;
+            nw = Math.max(0, baseW - roundedDrop);
+            noteFlag = 'Deload';
+          } else if (useWave && isBig3) {
+            const stepInc = roundVal > 0 ? roundVal : 2.5;
+            if (canProg) {
+              if (currentTargetReps === 5) {
+                nextTargetReps = 4;
+                nw = baseW + stepInc;
+                progCount++;
+              } else if (currentTargetReps === 4) {
+                nextTargetReps = 3;
+                nw = baseW + stepInc;
+                progCount++;
+              } else if (currentTargetReps === 3) {
+                nextTargetReps = 5;
+                nw = Math.max(0, baseW - stepInc);
+                progCount++;
+              } else {
+                nextTargetReps = 5;
+                nw = baseW;
+              }
+            } else {
+              // Missed reps or first entry: maintain current wave step and load
+              nextTargetReps = [3, 4, 5].includes(currentTargetReps) ? currentTargetReps : 5;
+              nw = baseW;
+            }
 
-          if (isCalisthenics) {
-            const bw = getBodyweightForDate(r.date);
-            const totalMass = r.weight + bw;
-            rawIncrease = totalMass * (pctIncrease / 100);
-          } else {
-            rawIncrease = r.weight * (pctIncrease / 100);
+          } else if (canProg) {
+            const isCalisthenics = CALISTHENICS_EXERCISES.includes(exerciseName);
+            let rawIncrease = 0;
+
+            if (isCalisthenics) {
+              const bw = getBodyweightForDate(sessionDateStr);
+              const totalMass = baseW + bw;
+              rawIncrease = totalMass * (pctIncrease / 100);
+            } else {
+              rawIncrease = baseW * (pctIncrease / 100);
+            }
+
+            if (roundVal > 0) {
+              const roundedDelta = Math.round(rawIncrease / roundVal) * roundVal;
+              const finalDelta = Math.max(roundVal, roundedDelta);
+              nw = baseW + finalDelta;
+            } else {
+              nw = parseFloat((baseW + rawIncrease).toFixed(1));
+            }
+            progCount++;
           }
 
-          if (roundVal > 0) {
-            const roundedDelta = Math.round(rawIncrease / roundVal) * roundVal;
-            const finalDelta = Math.max(roundVal, roundedDelta);
-            nw = r.weight + finalDelta;
-          } else {
-            nw = parseFloat((r.weight + rawIncrease).toFixed(1));
+          const setCount = Math.max(1, exItem.sets || 3);
+          for (let s = 1; s <= setCount; s++) {
+            newWeekRecords.push({
+              id: generateUUID(),
+              date: sessionDateStr,
+              workout: day.workout,
+              exercise: exerciseName,
+              set: s,
+              weight: nw,
+              targetReps: nextTargetReps,
+              actualReps: null,
+              notes: noteFlag,
+              isIncreased: canProg && !isDeload
+            });
           }
-          progCount++;
-        }
-
-        return {
-          id: generateUUID(),
-          date: newDateStr,
-          workout: r.workout,
-          exercise: r.exercise,
-          set: r.set,
-          weight: nw,
-          targetReps: nextTargetReps,
-          actualReps: null,
-          notes: noteFlag,
-          isIncreased: canProg && !isDeload
-        };
+        });
       });
+
+      if (!newWeekRecords.length) return;
 
       historyStack.push({
         records: JSON.parse(JSON.stringify(records)),
@@ -764,15 +917,15 @@
       });
       if (historyStack.length > 5) historyStack.shift();
 
-      records = [...newWeek, ...records];
-      activeDate = newWeek[0].date;
+      records = [...newWeekRecords, ...records];
+      activeDate = newWeekRecords[0].date;
       window.closeModal();
       saveState();
       render();
 
       const notifMsg = isDeload 
         ? `Deload week generated (${pctIncrease}% load).` 
-        : `New week generated: ${progCount} sets progressed.`;
+        : `New week generated from template: ${progCount} exercises progressed.`;
       showNotification(notifMsg);
     };
 
@@ -1622,15 +1775,153 @@
         tooltip.classList.remove('hidden');
       }
 
-      svgEl.addEventListener('pointerdown', (e) => handleScrub(e.clientX));
-      svgEl.addEventListener('pointermove', (e) => {
-        if (e.buttons > 0 || e.pointerType === 'mouse') handleScrub(e.clientX);
-      });
-      svgEl.addEventListener('pointerleave', () => {
-        scrubber.classList.add('hidden');
-        tooltip.classList.add('hidden');
-      });
+      if (svgEl) {
+        svgEl.addEventListener('pointerdown', (e) => handleScrub(e.clientX));
+        svgEl.addEventListener('pointermove', (e) => {
+          if (e.buttons > 0 || e.pointerType === 'mouse') handleScrub(e.clientX);
+        });
+        svgEl.addEventListener('pointerleave', () => {
+          if (scrubber) scrubber.classList.add('hidden');
+          if (tooltip) tooltip.classList.add('hidden');
+        });
+      }
     };
+
+    const DAY_OFFSET_MAP = [
+      { label: 'Mon (+0d)', offset: 0 },
+      { label: 'Tue (+1d)', offset: 1 },
+      { label: 'Wed (+2d)', offset: 2 },
+      { label: 'Thu (+3d)', offset: 3 },
+      { label: 'Fri (+4d)', offset: 4 }
+    ];
+
+    window.addTemplateDay = () => {
+      templatePlan.push({
+        dayIndex: Math.min(4, templatePlan.length * 2),
+        workout: 'Workout',
+        exercises: [{ exercise: 'Weighted Pull-ups', sets: 3, targetReps: 10 }]
+      });
+      saveTemplate();
+      renderPlanView();
+    };
+
+    window.removeTemplateDay = (dIdx) => {
+      if (templatePlan.length <= 1) {
+        showNotification('Template must have at least one day.');
+        return;
+      }
+      templatePlan.splice(dIdx, 1);
+      saveTemplate();
+      renderPlanView();
+    };
+
+    window.updateTemplateDay = (dIdx, field, val) => {
+      if (field === 'dayIndex') templatePlan[dIdx].dayIndex = parseInt(val, 10);
+      else templatePlan[dIdx][field] = val;
+      saveTemplate();
+    };
+
+    window.addTemplateExercise = (dIdx) => {
+      templatePlan[dIdx].exercises.push({ exercise: 'Exercise', sets: 3, targetReps: 10 });
+      saveTemplate();
+      renderPlanView();
+    };
+
+    window.removeTemplateExercise = (dIdx, eIdx) => {
+      if (templatePlan[dIdx].exercises.length <= 1) {
+        showNotification('Day must have at least one exercise.');
+        return;
+      }
+      templatePlan[dIdx].exercises.splice(eIdx, 1);
+      saveTemplate();
+      renderPlanView();
+    };
+
+    window.updateTemplateExercise = (dIdx, eIdx, field, val) => {
+      const ex = templatePlan[dIdx].exercises[eIdx];
+      if (field === 'sets') ex.sets = Math.max(1, parseInt(val, 10) || 1);
+      else if (field === 'targetReps') ex.targetReps = Math.max(1, parseInt(val, 10) || 1);
+      else if (field === 'exercise') ex.exercise = normalizeExerciseName(val);
+      saveTemplate();
+    };
+
+    function renderPlanView() {
+      const container = document.getElementById('plan-day-list');
+      if (!container) return;
+
+      container.innerHTML = templatePlan.map((day, dIdx) => {
+        const offsetOptions = DAY_OFFSET_MAP.map(o => `
+          <option value="${o.offset}" ${day.dayIndex === o.offset ? 'selected' : ''}>${o.label}</option>
+        `).join('');
+
+        const exercisesHtml = day.exercises.map((ex, eIdx) => `
+          <div class="flex items-center justify-between gap-2 p-2 rounded bg-zinc-900/60 border border-zinc-800/80 font-mono text-xs">
+            <input 
+              type="text" 
+              value="${escapeHTML(ex.exercise)}" 
+              onfocus="this.select()"
+              onchange="updateTemplateExercise(${dIdx}, ${eIdx}, 'exercise', this.value)"
+              class="bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 text-zinc-200 text-xs focus:outline-none flex-1 min-w-0"
+            />
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <span class="text-[10px] text-zinc-500">sets</span>
+              <input 
+                type="number" 
+                inputmode="numeric"
+                min="1" 
+                max="10" 
+                value="${ex.sets || 3}" 
+                onfocus="this.select()"
+                onchange="updateTemplateExercise(${dIdx}, ${eIdx}, 'sets', this.value)"
+                class="w-10 bg-zinc-950 border border-zinc-800 rounded px-1.5 py-0.5 text-center text-zinc-200 text-xs focus:outline-none"
+              />
+              <span class="text-[10px] text-zinc-500">tgt</span>
+              <input 
+                type="number" 
+                inputmode="numeric"
+                min="1" 
+                max="50" 
+                value="${ex.targetReps || 10}" 
+                onfocus="this.select()"
+                onchange="updateTemplateExercise(${dIdx}, ${eIdx}, 'targetReps', this.value)"
+                class="w-10 bg-zinc-950 border border-zinc-800 rounded px-1.5 py-0.5 text-center text-zinc-200 text-xs focus:outline-none"
+              />
+              <button onclick="removeTemplateExercise(${dIdx}, ${eIdx})" title="Delete Movement" class="text-zinc-600 hover:text-red-400 p-1 transition touch-btn">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+        return `
+          <div class="bg-zinc-950 border border-zinc-800/80 rounded p-3 space-y-2.5">
+            <div class="flex items-center justify-between gap-2 border-b border-zinc-800/80 pb-2">
+              <div class="flex items-center gap-2">
+                <input 
+                  type="text" 
+                  value="${escapeHTML(day.workout)}" 
+                  onfocus="this.select()"
+                  onchange="updateTemplateDay(${dIdx}, 'workout', this.value)"
+                  class="bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 font-medium text-xs text-zinc-200 focus:outline-none w-28 uppercase"
+                />
+                <select onchange="updateTemplateDay(${dIdx}, 'dayIndex', this.value)" class="bg-zinc-900 border border-zinc-800 text-[11px] font-mono text-zinc-300 rounded px-1.5 py-0.5 focus:outline-none">
+                  ${offsetOptions}
+                </select>
+              </div>
+              <div class="flex items-center gap-1">
+                <button onclick="addTemplateExercise(${dIdx})" class="px-2 py-0.5 text-[11px] font-mono rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 transition touch-btn">+</button>
+                <button onclick="removeTemplateDay(${dIdx})" title="Delete Day" class="text-zinc-600 hover:text-red-400 p-1 transition touch-btn">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              ${exercisesHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
 
     function render() {
       updateBadge();
@@ -1639,17 +1930,19 @@
       const tabGym = document.getElementById('tab-gym');
       const tabSheet = document.getElementById('tab-sheet');
       const tabStats = document.getElementById('tab-stats');
+      const tabPlan = document.getElementById('tab-plan');
 
       const viewGym = document.getElementById('view-gym');
       const viewSheet = document.getElementById('view-sheet');
       const viewStats = document.getElementById('view-stats');
+      const viewPlan = document.getElementById('view-plan');
       const searchBox = document.getElementById('search-container');
       const bwBox = document.getElementById('bw-container');
       const weeklyBadge = document.getElementById('weekly-set-badge');
 
-      [viewGym, viewSheet, viewStats, searchBox, bwBox, weeklyBadge].forEach(el => el.classList.add('hidden'));
-      [tabGym, tabSheet, tabStats].forEach(btn => {
-        btn.className = "px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn";
+      [viewGym, viewSheet, viewStats, viewPlan, searchBox, bwBox, weeklyBadge].forEach(el => el && el.classList.add('hidden'));
+      [tabGym, tabSheet, tabStats, tabPlan].forEach(btn => {
+        if (btn) btn.className = "px-3 py-1 rounded text-zinc-400 hover:text-zinc-200 transition touch-btn";
       });
 
       if (currentMode === 'gym') {
@@ -1669,12 +1962,17 @@
         document.getElementById('input-user-bw').value = getBodyweightForDate(activeDate);
         tabStats.className = "px-3 py-1 rounded text-zinc-100 bg-zinc-800 transition touch-btn";
         calculateStats();
+      } else if (currentMode === 'plan') {
+        viewPlan.classList.remove('hidden');
+        tabPlan.className = "px-3 py-1 rounded text-zinc-100 bg-zinc-800 transition touch-btn";
+        renderPlanView();
       }
     }
 
     document.getElementById('tab-gym').onclick = () => { currentMode = 'gym'; render(); };
     document.getElementById('tab-sheet').onclick = () => { currentMode = 'sheet'; render(); };
     document.getElementById('tab-stats').onclick = () => { currentMode = 'stats'; render(); };
+    document.getElementById('tab-plan').onclick = () => { currentMode = 'plan'; render(); };
 
     document.getElementById('btn-duplicate').onclick = openNewWeekModal;
     document.getElementById('btn-undo').onclick = undoLastAction;
