@@ -211,19 +211,13 @@
 
     <!-- Plan View -->
     <div id="view-plan" class="hidden space-y-4">
-      <div class="flex items-center justify-between pb-1 border-b border-zinc-800/80">
+      <div class="flex items-center justify-between pb-2.5 border-b border-zinc-800/80">
         <div>
-          <div class="text-xs font-medium text-zinc-200">Weekly Template Blueprint</div>
-          <div class="text-[11px] font-mono text-zinc-500">Days map to Mon–Fri. Duplicating a week builds from this scaffold.</div>
+          <div class="text-xs font-medium text-zinc-200">Weekly Template</div>
         </div>
-        <div class="flex items-center gap-2">
-          <button onclick="resetTemplateFromHistory()" title="Reset from latest logs" class="px-2.5 py-1 text-[11px] font-mono rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 transition touch-btn">
-            Sync From Log
-          </button>
-          <button onclick="addTemplateDay()" class="px-2.5 py-1 text-[11px] font-mono rounded bg-zinc-100 text-zinc-950 font-medium hover:bg-white transition touch-btn">
-            + Day
-          </button>
-        </div>
+        <button onclick="addTemplateDay()" class="px-2.5 py-1 text-[11px] font-mono rounded bg-zinc-100 text-zinc-950 font-medium hover:bg-white transition touch-btn">
+          + Day
+        </button>
       </div>
       <div id="plan-day-list" class="space-y-4"></div>
     </div>
