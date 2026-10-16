@@ -29,10 +29,14 @@
     input[type=number] {
       -moz-appearance: textfield;
     }
+    input, select, textarea {
+      -webkit-user-select: auto !important;
+      user-select: auto !important;
+    }
     .touch-btn { touch-action: manipulation; }
   </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased select-none sm:select-auto pb-safe">
+<body class="min-h-screen flex flex-col antialiased pb-safe">
   <!-- Top Navigation / Header -->
   <header class="border-b border-zinc-800/80 bg-zinc-950/80 px-3 sm:px-4 py-2.5">
     <div class="max-w-5xl mx-auto flex items-center justify-between">
