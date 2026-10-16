@@ -1775,14 +1775,16 @@
         tooltip.classList.remove('hidden');
       }
 
-      svgEl.addEventListener('pointerdown', (e) => handleScrub(e.clientX));
-      svgEl.addEventListener('pointermove', (e) => {
-        if (e.buttons > 0 || e.pointerType === 'mouse') handleScrub(e.clientX);
-      });
-      svgEl.addEventListener('pointerleave', () => {
-        scrubber.classList.add('hidden');
-        tooltip.classList.add('hidden');
-      });
+      if (svgEl) {
+        svgEl.addEventListener('pointerdown', (e) => handleScrub(e.clientX));
+        svgEl.addEventListener('pointermove', (e) => {
+          if (e.buttons > 0 || e.pointerType === 'mouse') handleScrub(e.clientX);
+        });
+        svgEl.addEventListener('pointerleave', () => {
+          if (scrubber) scrubber.classList.add('hidden');
+          if (tooltip) tooltip.classList.add('hidden');
+        });
+      }
     };
 
     const DAY_OFFSET_MAP = [
