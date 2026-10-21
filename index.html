@@ -33,7 +33,10 @@
       -webkit-user-select: auto !important;
       user-select: auto !important;
     }
-    .touch-btn { touch-action: manipulation; }
+    .touch-btn { touch-action: manipulation; 
+    }
+    .set-row { scroll-margin-bottom: 9rem;
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased pb-safe">
@@ -137,7 +140,7 @@
           <thead class="bg-zinc-900/90 sticky top-0 text-zinc-400 font-mono text-[11px] tracking-wider border-b border-zinc-800 z-10">
             <tr>
               <th class="py-2 px-3 font-normal">Date</th>
-              <th class="py-2 px-3 font-normal">W/O</th>
+              <th class="py-2 px-3 font-normal min-w-[84px]">W/O</th>
               <th class="py-2 px-3 font-normal">Exercise</th>
               <th class="py-2 px-3 text-center font-normal">Set</th>
               <th class="py-2 px-3 text-right font-normal">Wt</th>
@@ -629,13 +632,7 @@
       return SEED_DATA;
     })();
 
-    let historyStack = (() => {
-      try {
-        const savedHist = localStorage.getItem(HISTORY_KEY_PROD);
-        if (savedHist) return JSON.parse(savedHist);
-      } catch (e) {}
-      return [];
-    })();
+    let historyStack = [];
 
     function getTodayString() {
       const d = new Date();
@@ -659,14 +656,8 @@
     function saveState() {
       try {
         localStorage.setItem(STORAGE_KEY_PROD, JSON.stringify(records));
-        localStorage.setItem(HISTORY_KEY_PROD, JSON.stringify(historyStack));
       } catch (e) {
-        console.warn('Storage quota exceeded, clearing old undo history', e);
-        historyStack = historyStack.slice(-2);
-        try {
-          localStorage.setItem(HISTORY_KEY_PROD, JSON.stringify(historyStack));
-          localStorage.setItem(STORAGE_KEY_PROD, JSON.stringify(records));
-        } catch (err) {}
+        console.warn('Storage quota exceeded when saving records', e);
       }
       updateBadge();
       updateWeeklyBadge();
@@ -709,9 +700,23 @@
       return ref.toISOString().split('T')[0];
     }
 
-    function getMostRecentExerciseSets(exerciseName) {
+    function isRecordDeload(r) {
+      if (!r) return false;
+      return Boolean(
+        r.isDeload === true || 
+        r.isDeload === 'true' || 
+        (r.workout && r.workout.toLowerCase().includes('deload')) ||
+        (r.notes && r.notes.trim().toLowerCase().includes('deload'))
+      );
+    }
+
+    function getMostRecentExerciseSets(exerciseName, ignoreDeload = false) {
       const matching = records
-        .filter(r => r.exercise === exerciseName)
+        .filter(r => {
+          if (r.exercise !== exerciseName) return false;
+          if (ignoreDeload && isRecordDeload(r)) return false;
+          return true;
+        })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
       if (!matching.length) return [];
       const latestDate = matching[0].date;
@@ -725,13 +730,14 @@
       }
 
       const uniqueTemplateExercises = Array.from(new Set(
-        templatePlan.flatMap(d => d.exercises.map(e => e.exercise))
+        templatePlan.flatMap(d => d.exercises.map(e => normalizeExerciseName(e.exercise)))
       ));
 
       let qualifiedCount = 0;
       uniqueTemplateExercises.forEach(ex => {
-        const lastSets = getMostRecentExerciseSets(ex);
-        if (lastSets.length > 0) {
+        const lastSets = getMostRecentExerciseSets(ex, false);
+        const isPriorDeload = lastSets.some(s => s.notes && s.notes.trim().toLowerCase().includes('deload'));
+        if (!isPriorDeload && lastSets.length > 0) {
           const baseW = lastSets[0].weight;
           const uniformW = lastSets.every(s => s.weight === baseW);
           const metTarget = lastSets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
@@ -816,48 +822,75 @@
 
         day.exercises.forEach(exItem => {
           const exerciseName = normalizeExerciseName(exItem.exercise);
-          const lastSets = getMostRecentExerciseSets(exerciseName);
+          const rawRecentSets = getMostRecentExerciseSets(exerciseName, false);
+          const wasDeload = rawRecentSets.some(s => s.notes && s.notes.trim().toLowerCase().includes('deload'));
+
+          // When transitioning from deload to normal week, anchor to pre-deload data
+          const lastSets = (!isDeload && wasDeload) 
+            ? getMostRecentExerciseSets(exerciseName, true) 
+            : rawRecentSets;
+
           const isBig3 = BIG_3.includes(exerciseName);
+          const templateTargetReps = exItem.targetReps || 10;
 
           let baseW = 0.0;
           let canProg = false;
-          let currentTargetReps = exItem.targetReps || 10;
+          let waveCurrentReps = 5;
 
           if (lastSets.length > 0) {
             baseW = lastSets[0].weight;
-            currentTargetReps = lastSets[0].targetReps || currentTargetReps;
-            const uniformW = lastSets.every(s => s.weight === baseW);
-            const metTarget = lastSets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
-            const isCalisthenics = CALISTHENICS_EXERCISES.includes(exerciseName);
-            canProg = uniformW && metTarget && (baseW > 0 || isCalisthenics);
+            waveCurrentReps = lastSets[0].targetReps || 5;
+
+            // Only allow progression if the immediate previous week was completed and was NOT a deload
+            if (!wasDeload) {
+              const uniformW = lastSets.every(s => s.weight === baseW);
+              const metTarget = lastSets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
+              const isCalisthenics = CALISTHENICS_EXERCISES.includes(exerciseName);
+              canProg = uniformW && metTarget && (baseW > 0 || isCalisthenics);
+            }
           }
 
           let nw = baseW;
-          let nextTargetReps = currentTargetReps;
+          let nextTargetReps = templateTargetReps; // Strictly respected for all non-wave lifts
           let noteFlag = '';
+
+          const isCalisthenics = CALISTHENICS_EXERCISES.includes(exerciseName);
+          const priorSessionDate = lastSets.length > 0 ? lastSets[0].date : sessionDateStr;
+          const priorBW = isCalisthenics ? getBodyweightForDate(priorSessionDate) : 0;
+          const targetBW = isCalisthenics ? getBodyweightForDate(sessionDateStr) : 0;
 
           if (isDeload) {
             const dropPct = Math.abs(pctIncrease) / 100 || 0.10;
-            let rawDrop = baseW * dropPct;
-            if (CALISTHENICS_EXERCISES.includes(exerciseName)) {
-              const bw = getBodyweightForDate(sessionDateStr);
-              rawDrop = (baseW + bw) * dropPct;
+            let rawDrop = 0;
+            if (isCalisthenics) {
+              const priorTotalMass = baseW + priorBW;
+              const targetTotalMass = priorTotalMass * (1 - dropPct);
+              rawDrop = baseW - Math.max(0, targetTotalMass - targetBW);
+            } else {
+              rawDrop = baseW * dropPct;
             }
             const roundedDrop = roundVal > 0 ? Math.round(rawDrop / roundVal) * roundVal : rawDrop;
             nw = Math.max(0, baseW - roundedDrop);
-            noteFlag = 'Deload';
+            noteFlag = '';
+            if (useWave && isBig3) {
+              nextTargetReps = [3, 4, 5].includes(waveCurrentReps) ? waveCurrentReps : 5;
+            }
           } else if (useWave && isBig3) {
             const stepInc = roundVal > 0 ? roundVal : 2.5;
-            if (canProg) {
-              if (currentTargetReps === 5) {
+            if (wasDeload) {
+              // Reset to pre-deload wave position and pre-deload load
+              nextTargetReps = [3, 4, 5].includes(waveCurrentReps) ? waveCurrentReps : 5;
+              nw = baseW;
+            } else if (canProg) {
+              if (waveCurrentReps === 5) {
                 nextTargetReps = 4;
                 nw = baseW + stepInc;
                 progCount++;
-              } else if (currentTargetReps === 4) {
+              } else if (waveCurrentReps === 4) {
                 nextTargetReps = 3;
                 nw = baseW + stepInc;
                 progCount++;
-              } else if (currentTargetReps === 3) {
+              } else if (waveCurrentReps === 3) {
                 nextTargetReps = 5;
                 nw = Math.max(0, baseW - stepInc);
                 progCount++;
@@ -866,29 +899,33 @@
                 nw = baseW;
               }
             } else {
-              // Missed reps or first entry: maintain current wave step and load
-              nextTargetReps = [3, 4, 5].includes(currentTargetReps) ? currentTargetReps : 5;
+              nextTargetReps = [3, 4, 5].includes(waveCurrentReps) ? waveCurrentReps : 5;
               nw = baseW;
             }
-
+          } else if (wasDeload) {
+            // Option B: Reset to pre-deload baseline weight, template reps, no progression
+            nw = baseW;
+            nextTargetReps = templateTargetReps;
           } else if (canProg) {
-            const isCalisthenics = CALISTHENICS_EXERCISES.includes(exerciseName);
-            let rawIncrease = 0;
-
             if (isCalisthenics) {
-              const bw = getBodyweightForDate(sessionDateStr);
-              const totalMass = baseW + bw;
-              rawIncrease = totalMass * (pctIncrease / 100);
+              const priorTotalMass = baseW + priorBW;
+              const targetTotalMass = priorTotalMass * (1 + pctIncrease / 100);
+              const rawAddedPlate = Math.max(0, targetTotalMass - targetBW);
+              let delta = rawAddedPlate - baseW;
+              if (roundVal > 0) {
+                const roundedDelta = Math.round(delta / roundVal) * roundVal;
+                delta = Math.max(roundVal, roundedDelta);
+              }
+              nw = Math.max(0, baseW + delta);
             } else {
-              rawIncrease = baseW * (pctIncrease / 100);
-            }
-
-            if (roundVal > 0) {
-              const roundedDelta = Math.round(rawIncrease / roundVal) * roundVal;
-              const finalDelta = Math.max(roundVal, roundedDelta);
-              nw = baseW + finalDelta;
-            } else {
-              nw = parseFloat((baseW + rawIncrease).toFixed(1));
+              const rawIncrease = baseW * (pctIncrease / 100);
+              if (roundVal > 0) {
+                const roundedDelta = Math.round(rawIncrease / roundVal) * roundVal;
+                const finalDelta = Math.max(roundVal, roundedDelta);
+                nw = baseW + finalDelta;
+              } else {
+                nw = parseFloat((baseW + rawIncrease).toFixed(1));
+              }
             }
             progCount++;
           }
@@ -905,7 +942,8 @@
               targetReps: nextTargetReps,
               actualReps: null,
               notes: noteFlag,
-              isIncreased: canProg && !isDeload
+              isIncreased: canProg && !isDeload && !wasDeload,
+              isDeload: isDeload
             });
           }
         });
@@ -914,10 +952,12 @@
       if (!newWeekRecords.length) return;
 
       historyStack.push({
-        records: JSON.parse(JSON.stringify(records)),
-        activeDate: activeDate
+        type: 'NEW_WEEK',
+        insertedIds: newWeekRecords.map(r => r.id),
+        previousActiveDate: activeDate,
+        description: 'New week'
       });
-      if (historyStack.length > 5) historyStack.shift();
+      if (historyStack.length > 10) historyStack.shift();
 
       records = [...newWeekRecords, ...records];
       activeDate = newWeekRecords[0].date;
@@ -936,16 +976,26 @@
         showNotification('Nothing to undo.');
         return;
       }
-      const previous = historyStack.pop();
-      records = previous.records;
-      activeDate = previous.activeDate;
+      const action = historyStack.pop();
+      if (action.type === 'NEW_WEEK') {
+        const idSet = new Set(action.insertedIds);
+        records = records.filter(r => !idSet.has(r.id));
+        activeDate = action.previousActiveDate;
+      } else if (action.type === 'ADD_SET') {
+        records = records.filter(r => r.id !== action.insertedId);
+      } else if (action.type === 'REMOVE_SET') {
+        records.splice(action.index, 0, action.removedRecord);
+      } else if (action.type === 'IMPORT_CSV') {
+        records = action.previousRecords;
+        activeDate = action.previousActiveDate;
+      }
       saveState();
       render();
-      showNotification('Reverted to previous state.');
+      showNotification('Reverted: ' + action.description);
     }
 
     function exportCSV() {
-      const headers = ['Date', 'Workout', 'Exercise', 'Set', 'Weight', 'Target Reps', 'Actual Reps', 'Notes'];
+      const headers = ['Date', 'Workout', 'Exercise', 'Set', 'Weight', 'Target Reps', 'Actual Reps', 'Notes', 'IsDeload'];
       const rows = records.map(r => [
         r.date,
         r.workout,
@@ -954,7 +1004,8 @@
         r.weight,
         r.targetReps,
         r.actualReps !== null ? r.actualReps : '',
-        '"' + (r.notes || '').replace(/"/g, '""') + '"'
+        '"' + (r.notes || '').replace(/"/g, '""') + '"',
+        isRecordDeload(r) ? 'true' : 'false'
       ]);
       const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
       const link = document.createElement('a');
@@ -1041,6 +1092,7 @@
             const targetReps = parseInt(cols[5], 10);
             const actualReps = cols[6] && cols[6] !== '' ? parseInt(cols[6], 10) : null;
             const notes = cols[7] || '';
+            const isDeloadCol = cols[8] ? cols[8].trim().toLowerCase() === 'true' : false;
 
             if (!ISO_DATE_REGEX.test(date) || isNaN(Date.parse(date))) continue;
             if (!rawExercise || !rawExercise.trim()) continue;
@@ -1059,7 +1111,8 @@
               targetReps,
               actualReps,
               notes,
-              isIncreased: false
+              isIncreased: false,
+              isDeload: isDeloadCol || workout.toLowerCase().includes('deload') || notes.toLowerCase().includes('deload')
             });
           }
 
@@ -1197,12 +1250,10 @@
       const currentSets = records.filter(r => r.date === activeDate && r.exercise === exerciseName);
       if (!currentSets.length) return;
 
-      historyStack.push({ records: JSON.parse(JSON.stringify(records)), activeDate });
-      if (historyStack.length > 5) historyStack.shift();
-
       const lastSet = currentSets[currentSets.length - 1];
+      const newId = generateUUID();
       const newSetRecord = {
-        id: generateUUID(),
+        id: newId,
         date: activeDate,
         workout: workoutName,
         exercise: exerciseName,
@@ -1216,6 +1267,12 @@
 
       const lastIndex = records.findLastIndex(r => r.date === activeDate && r.exercise === exerciseName);
       records.splice(lastIndex + 1, 0, newSetRecord);
+      historyStack.push({
+        type: 'ADD_SET',
+        insertedId: newId,
+        description: 'Added set'
+      });
+      if (historyStack.length > 10) historyStack.shift();
       saveState();
       render();
     };
@@ -1227,7 +1284,12 @@
         return;
       }
 
-      historyStack.push({ records: JSON.parse(JSON.stringify(records)), activeDate });
+      historyStack.push({
+              type: 'IMPORT_CSV',
+              previousRecords: records,
+              previousActiveDate: activeDate,
+              description: 'CSV Import'
+            });
       if (historyStack.length > 5) historyStack.shift();
 
       const lastIndex = records.findLastIndex(r => r.date === activeDate && r.exercise === exerciseName);
@@ -1241,10 +1303,11 @@
     function getExerciseWeightDelta(exerciseName, currentDate, currentWeight, currentTargetReps) {
       if (!currentWeight || currentWeight <= 0 || !currentTargetReps) return 0;
 
-      // Filter to same exercise, strictly earlier date, and comparable target rep range (+/- 3 reps)
+      // Filter to same exercise, strictly earlier date, comparable target rep range, and non-deload sessions
       const priorRows = records
         .filter(r => {
           if (r.exercise !== exerciseName || r.date >= currentDate || r.weight <= 0) return false;
+          if (r.notes && r.notes.trim().toLowerCase().includes('deload')) return false;
           const repVariance = Math.abs((r.targetReps || 0) - currentTargetReps);
           return repVariance <= 2;
         })
@@ -1303,7 +1366,7 @@
             : 'border-transparent text-zinc-600 hover:text-zinc-400';
 
           return '' +
-            '<div class="flex flex-col px-3 py-1.5 text-xs">' +
+            '<div class="set-row flex flex-col px-3 py-1.5 text-xs">' +
               '<div class="flex items-center justify-between">' +
                 '<div class="flex items-center gap-2 sm:gap-3">' +
                   '<span class="font-mono text-zinc-500 w-3">' + s.set + '</span>' +
@@ -1338,6 +1401,8 @@
                   '<button onclick="updateReps(\'' + s.id + '\', -1)" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">-</button>' +
                   '<input ' +
                     'type="number" ' +
+                    'inputmode="numeric" ' +
+                    'pattern="[0-9]*" ' +
                     'placeholder="-" ' +
                     'data-reps-id="' + s.id + '" ' +
                     'data-target-reps="' + s.targetReps + '" ' +
@@ -1383,8 +1448,17 @@
           ? '<span class="text-[10px] font-mono font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.5 rounded">+' + weightDelta + '</span>'
           : '';
 
+        const isCurrentDeload = g.sets.some(s => isRecordDeload(s));
+        const deloadBadgeHtml = isCurrentDeload
+          ? '<span title="Deload Session" class="w-5 h-5 rounded border border-amber-800/60 bg-amber-950/40 text-amber-400 flex items-center justify-center flex-shrink-0">' +
+              '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+                '<polyline points="6 9 12 15 18 9"/>' +
+              '</svg>' +
+            '</span>'
+          : '';
+
         const prevNoteBtn = prevNoteData
-          ? '<button onclick="toggleNotePopup(\'' + popupId + '\')" title="Prior notes" aria-label="Prior notes" class="text-zinc-400 hover:text-zinc-200 p-1 rounded border border-zinc-800 bg-zinc-900 touch-btn flex items-center justify-center">' +
+          ? '<button onclick="toggleNotePopup(\'' + popupId + '\')" title="Prior notes" aria-label="Prior notes" class="w-5 h-5 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200 touch-btn flex items-center justify-center flex-shrink-0">' +
               '<svg class="w-3 h-3 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
                 '<circle cx="12" cy="12" r="10"/>' +
                 '<line x1="12" y1="8" x2="12" y2="12"/>' +
@@ -1398,6 +1472,7 @@
             '<div class="px-3 py-2 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between">' +
               '<div class="flex items-center gap-2">' +
                 '<span class="text-xs font-medium text-zinc-200">' + escapeHTML(g.exercise) + '</span>' +
+                deloadBadgeHtml +
                 badgeHtml +
                 '<span class="text-[10px] font-mono text-zinc-500 uppercase">' + escapeHTML(g.workout) + '</span>' +
                 prevNoteBtn +
@@ -1437,13 +1512,21 @@
             />
           </td>
           <td class="py-1 px-2">
-            <input 
-              type="text" 
-              value="${escapeHTML(r.workout)}" 
-              onfocus="this.select()"
-              onchange="updateRecordField('${r.id}', 'workout', this.value)"
-              class="w-14 bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 text-zinc-400 font-mono text-[11px] focus:outline-none"
-            />
+            <div class="flex items-center gap-1 min-w-[80px]">
+              <input 
+                type="text" 
+                value="${escapeHTML(r.workout)}" 
+                onfocus="this.select()"
+                onchange="updateRecordField('${r.id}', 'workout', this.value)"
+                class="w-16 bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 text-zinc-400 font-mono text-[11px] focus:outline-none"
+              />
+              ${isRecordDeload(r) ? `
+                <span title="Deload Session" class="w-4 h-4 rounded border border-amber-800/60 bg-amber-950/40 text-amber-400 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </span>` : ''}
+            </div>
           </td>
           <td class="py-1 px-2">
             <div class="flex items-center gap-1.5 min-w-[170px]">
@@ -1523,7 +1606,7 @@
     let selectedExerciseForChart = TOTAL_BIG_3_OPTION;
 
     function calculateStats() {
-      const completed = records.filter(r => r.actualReps !== null && r.actualReps > 0);
+      const completed = records.filter(r => r.actualReps !== null && r.actualReps > 0 && !isRecordDeload(r));
       const allDates = completed.map(r => new Date(r.date)).sort((a, b) => b - a);
       const latestDt = allDates[0] || new Date();
 
@@ -1639,9 +1722,9 @@
       let points = [];
 
       if (isBig3Aggregate) {
-        // Collect all dates chronologically where any completed sets exist
+        // Collect all dates chronologically where any non-deload completed sets exist
         const allCompleted = records
-          .filter(r => r.actualReps !== null && r.actualReps > 0)
+          .filter(r => r.actualReps !== null && r.actualReps > 0 && !isRecordDeload(r))
           .sort((a, b) => new Date(a.date) - new Date(b.date));
 
         const chronologicalDates = Array.from(new Set(allCompleted.map(r => r.date))).sort();
@@ -1668,7 +1751,7 @@
         });
       } else {
         const completedEx = records
-          .filter(r => r.exercise === ex && r.actualReps !== null && r.actualReps > 0)
+          .filter(r => r.exercise === ex && r.actualReps !== null && r.actualReps > 0 && !isRecordDeload(r))
           .sort((a, b) => new Date(a.date) - new Date(b.date));
 
         const dateMap = {};
