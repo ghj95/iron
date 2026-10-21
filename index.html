@@ -46,7 +46,10 @@
       <div class="flex items-center gap-4">
         <img src="ghj.gif" alt="Iron" class="w-12 h-12 object-contain">
         <span class="text-zinc-600">|</span>
-        <span id="set-count-badge" class="text-[11px] font-mono leading-none text-zinc-400"></span>
+        <div class="h-7 flex flex-col justify-between py-0.5 select-none">
+          <span id="set-count-badge" class="text-[11px] font-mono leading-none text-zinc-400"></span>
+          <span id="deload-count-badge" class="text-[10px] font-mono leading-none text-zinc-500"></span>
+        </div>
       </div>
       <div class="flex items-center gap-1.5 sm:gap-2">
         <div class="flex items-center border border-zinc-800 rounded bg-zinc-900 overflow-hidden">
@@ -269,7 +272,7 @@
             />
             <div class="flex flex-col">
               <span class="text-zinc-200 text-[11px] font-semibold">Deload Week</span>
-              <span class="text-zinc-500 text-[9px]">-10%</span>
+              <span class="text-zinc-500 text-[9px]">-15%</span>
             </div>
           </label>
         </div>
@@ -665,7 +668,50 @@
 
     function updateBadge() {
       const nonNullCount = records.filter(r => r.actualReps !== null).length;
-      document.getElementById('set-count-badge').innerText = nonNullCount + ' sets';
+      const setBadge = document.getElementById('set-count-badge');
+      const deloadBadge = document.getElementById('deload-count-badge');
+
+      if (setBadge) setBadge.innerText = nonNullCount + ' sets';
+      if (!deloadBadge) return;
+
+      const dates = getUniqueDates();
+      if (!dates.length) {
+        deloadBadge.innerText = '';
+        return;
+      }
+
+      // Find all deload records using the helper
+      const deloadRecords = records.filter(r => isRecordDeload(r));
+      const latestDateStr = dates[0]; // Reference to latest planned/logged week
+      const latestDateObj = new Date(latestDateStr + 'T00:00:00');
+
+      if (deloadRecords.length > 0) {
+        const deloadDates = Array.from(new Set(deloadRecords.map(r => r.date))).sort((a, b) => new Date(b) - new Date(a));
+        const mostRecentDeloadStr = deloadDates[0];
+        const mostRecentDeloadObj = new Date(mostRecentDeloadStr + 'T00:00:00');
+
+        const diffDays = Math.max(0, Math.round((latestDateObj - mostRecentDeloadObj) / (1000 * 60 * 60 * 24)));
+        const weeksSince = Math.floor(diffDays / 7);
+
+        if (weeksSince === 0) {
+          deloadBadge.className = "text-[10px] font-mono leading-none text-amber-400 font-medium";
+          deloadBadge.innerText = "deload week";
+        } else {
+          const isDue = weeksSince >= 4;
+          deloadBadge.className = `text-[10px] font-mono leading-none ${isDue ? 'text-amber-400/90 font-medium' : 'text-zinc-500'}`;
+          deloadBadge.innerText = `${weeksSince}w since deload`;
+        }
+      } else {
+        // If no deload has been logged yet, calculate weeks since the start of records
+        const earliestDateStr = dates[dates.length - 1];
+        const earliestDateObj = new Date(earliestDateStr + 'T00:00:00');
+        const diffDays = Math.max(0, Math.round((latestDateObj - earliestDateObj) / (1000 * 60 * 60 * 24)));
+        const weeksSince = Math.floor(diffDays / 7);
+
+        const isDue = weeksSince >= 4;
+        deloadBadge.className = `text-[10px] font-mono leading-none ${isDue ? 'text-amber-400/90 font-medium' : 'text-zinc-500'}`;
+        deloadBadge.innerText = `${weeksSince}w since deload`;
+      }
     }
 
     function showNotification(msg) {
@@ -736,7 +782,7 @@
       let qualifiedCount = 0;
       uniqueTemplateExercises.forEach(ex => {
         const lastSets = getMostRecentExerciseSets(ex, false);
-        const isPriorDeload = lastSets.some(s => s.notes && s.notes.trim().toLowerCase().includes('deload'));
+        const isPriorDeload = lastSets.some(s => isRecordDeload(s));
         if (!isPriorDeload && lastSets.length > 0) {
           const baseW = lastSets[0].weight;
           const uniformW = lastSets.every(s => s.weight === baseW);
@@ -780,8 +826,8 @@
       const waveCheckbox = document.getElementById('toggle-wave-loading');
 
       if (isDeload) {
-        if (pctInput) pctInput.value = -10;
-        if (pctDisplay) pctDisplay.innerText = '-10%';
+        if (pctInput) pctInput.value = -15;
+        if (pctDisplay) pctDisplay.innerText = '-15%';
         if (waveCheckbox) {
           waveCheckbox.checked = false;
           waveCheckbox.disabled = true;
@@ -823,7 +869,7 @@
         day.exercises.forEach(exItem => {
           const exerciseName = normalizeExerciseName(exItem.exercise);
           const rawRecentSets = getMostRecentExerciseSets(exerciseName, false);
-          const wasDeload = rawRecentSets.some(s => s.notes && s.notes.trim().toLowerCase().includes('deload'));
+          const wasDeload = rawRecentSets.some(s => isRecordDeload(s));
 
           // When transitioning from deload to normal week, anchor to pre-deload data
           const lastSets = (!isDeload && wasDeload) 
@@ -860,7 +906,7 @@
           const targetBW = isCalisthenics ? getBodyweightForDate(sessionDateStr) : 0;
 
           if (isDeload) {
-            const dropPct = Math.abs(pctIncrease) / 100 || 0.10;
+            const dropPct = Math.abs(pctIncrease) / 100 || 0.15;
             let rawDrop = 0;
             if (isCalisthenics) {
               const priorTotalMass = baseW + priorBW;
@@ -930,7 +976,8 @@
             progCount++;
           }
 
-          const setCount = Math.max(1, exItem.sets || 3);
+          // Set generation loop:
+          const setCount = isDeload ? 2 : Math.max(1, exItem.sets || 3);
           for (let s = 1; s <= setCount; s++) {
             newWeekRecords.push({
               id: generateUUID(),
@@ -1307,7 +1354,7 @@
       const priorRows = records
         .filter(r => {
           if (r.exercise !== exerciseName || r.date >= currentDate || r.weight <= 0) return false;
-          if (r.notes && r.notes.trim().toLowerCase().includes('deload')) return false;
+          if (isRecordDeload(r)) return false;
           const repVariance = Math.abs((r.targetReps || 0) - currentTargetReps);
           return repVariance <= 2;
         })
