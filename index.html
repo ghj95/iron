@@ -424,46 +424,6 @@
       localStorage.setItem(TEMPLATE_KEY_PROD, JSON.stringify(templatePlan));
     }
 
-    window.resetTemplateFromHistory = () => {
-      const dates = getUniqueDates().slice(0, 5);
-      if (!dates.length) return;
-
-      const newPlan = [];
-      const distinctWorkouts = Array.from(new Set(dates.map(d => records.find(r => r.date === d)?.workout))).filter(Boolean);
-
-      distinctWorkouts.forEach((wType, idx) => {
-        const sampleDate = dates.find(d => records.some(r => r.date === d && r.workout === wType));
-        const dayRows = records.filter(r => r.date === sampleDate);
-
-        const exercises = [];
-        const seenEx = new Set();
-        dayRows.forEach(r => {
-          if (!seenEx.has(r.exercise)) {
-            seenEx.add(r.exercise);
-            const exSets = dayRows.filter(s => s.exercise === r.exercise);
-            exercises.push({
-              exercise: r.exercise,
-              sets: exSets.length,
-              targetReps: exSets[0].targetReps || 10
-            });
-          }
-        });
-
-        newPlan.push({
-          dayIndex: Math.min(4, idx * 2),
-          workout: wType,
-          exercises: exercises
-        });
-      });
-
-      if (newPlan.length > 0) {
-        templatePlan = newPlan;
-        saveTemplate();
-        renderPlanView();
-        showNotification('Template synced from latest logged workouts.');
-      }
-    };
-
     let bwHistory = (() => {
       try {
         const saved = localStorage.getItem(BW_HISTORY_KEY);
