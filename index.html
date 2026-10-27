@@ -632,11 +632,11 @@
         try { lastExport = localStorage.getItem(LAST_EXPORT_KEY); } catch (e) {}
         let bkpText, bkpStale;
         if (!lastExport) {
-          bkpText = 'no backup';
+          bkpText = 'no bkp';
           bkpStale = records.length > 0;
         } else {
           const days = Math.floor((Date.now() - Number(lastExport)) / 86400000);
-          bkpText = days === 0 ? 'bkp today' : `bkp ${days}d`;
+          bkpText = days === 0 ? 'bkp td' : `bkp ${days}d`;
           bkpStale = days >= 7;
         }
         setBadge.innerHTML = nonNullCount + ' sets ' +
@@ -1212,7 +1212,7 @@
             <div class="flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full ${statusDotClass}"></span>
               <span class="text-[11px] font-mono leading-none whitespace-nowrap">${label}</span>
-              ${isToday ? '<span class="text-[9px] font-mono leading-none text-emerald-400">today</span>' : ''}
+              ${isToday ? '<span class="text-[9px] font-mono leading-none text-zinc-400">td</span>' : ''}
             </div>
             <div class="text-[10px] font-mono mt-1 flex justify-between gap-3 text-zinc-400">
               <span>${wType}</span>
