@@ -636,7 +636,7 @@
           bkpStale = records.length > 0;
         } else {
           const days = Math.floor((Date.now() - Number(lastExport)) / 86400000);
-          bkpText = days === 0 ? 'bkp today' : `bkp ${days}d`;
+          bkpText = days === 0 ? 'bkp td' : `bkp ${days}d`;
           bkpStale = days >= 7;
         }
         setBadge.innerHTML = nonNullCount + ' sets ' +
@@ -1208,7 +1208,7 @@
             <div class="flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full ${statusDotClass}"></span>
               <span class="text-[11px] font-mono leading-none whitespace-nowrap">${label}</span>
-              ${isToday ? '<span class="text-[9px] font-mono leading-none text-emerald-400">today</span>' : ''}
+              ${isToday ? '<span class="text-[9px] font-mono leading-none text-zinc-400">td</span>' : ''}
             </div>
             <div class="text-[10px] font-mono mt-1 flex justify-between gap-3 text-zinc-400">
               <span>${wType}</span>
@@ -1384,13 +1384,20 @@
     }
 
     // How much lighter a deload session is than the last normal session in the same rep range
-    function getDeloadWeightDrop(exerciseName, currentDate, currentWeight, currentTargetReps) {
-      if (!currentTargetReps) return 0;
+    // Compares against the same workout day's last normal session (e.g. last Friday's "OHP Push"),
+    // falling back to the same rep range when that day didn't have this exercise.
+    function getDeloadWeightDrop(exerciseName, currentDate, currentWeight, currentTargetReps, workoutName) {
+      const prior = (filterFn) => {
+        const rows = records.filter(r => r.exercise === exerciseName && r.date < currentDate && !isRecordDeload(r) && filterFn(r));
+        if (!rows.length) return [];
+        const latest = rows.reduce((m, r) => (r.date > m ? r.date : m), rows[0].date);
+        return rows.filter(r => r.date === latest);
+      };
       // Bodyweight sessions count here: deloading from 0 lbs is no drop
-      const priorSessionSets = findLatestSessionSets(exerciseName, currentTargetReps, {
-        ignoreDeload: true,
-        beforeDate: currentDate
-      });
+      let priorSessionSets = workoutName ? prior(r => r.workout === workoutName) : [];
+      if (!priorSessionSets.length && currentTargetReps) {
+        priorSessionSets = prior(r => Math.abs((r.targetReps || 0) - currentTargetReps) <= REP_RANGE_TOLERANCE);
+      }
       if (!priorSessionSets.length) return 0;
       const priorMaxWeight = Math.max(...priorSessionSets.map(r => r.weight || 0));
       const diff = priorMaxWeight - (currentWeight || 0);
@@ -1535,7 +1542,7 @@
           ? '<span class="text-[10px] font-mono font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.5 rounded">+' + weightDelta + '</span>'
           : '';
 
-        const deloadDrop = isCurrentDeload ? getDeloadWeightDrop(g.exercise, activeDate, currentGroupMaxWeight, dominantTargetReps) : 0;
+        const deloadDrop = isCurrentDeload ? getDeloadWeightDrop(g.exercise, activeDate, currentGroupMaxWeight, dominantTargetReps, g.workout) : 0;
         const deloadBadgeHtml = deloadDrop > 0
           ? deloadDropBadge(deloadDrop, 'text-[10px] px-1.5 py-0.5')
           : isCurrentDeload
@@ -1588,7 +1595,7 @@
       tbody.innerHTML = filtered.map(r => {
         const isSelectedDate = r.date === activeDate;
         const weightDelta = getExerciseWeightDelta(r.exercise, r.date, r.weight, r.targetReps, isRecordDeload(r));
-        const deloadDrop = isRecordDeload(r) ? getDeloadWeightDrop(r.exercise, r.date, r.weight, r.targetReps) : 0;
+        const deloadDrop = isRecordDeload(r) ? getDeloadWeightDrop(r.exercise, r.date, r.weight, r.targetReps, r.workout) : 0;
 
         return `
         <tr class="transition ${isSelectedDate ? 'bg-zinc-800/40 border-l-2 border-zinc-400' : 'hover:bg-zinc-900/40'}">
