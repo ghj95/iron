@@ -1269,16 +1269,66 @@
       updateWeeklyBadge();
     }
 
+    // Haptic feedback.
+    // Android: Vibration API. iPhone (iOS 18+): Safari has no Vibration API, but toggling a
+    // hidden <input type="checkbox" switch> plays the system haptic tick. Only fires during a tap.
+    const Haptics = (() => {
+      const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+      let switchLabel = null;
+      function getSwitch() {
+        if (switchLabel) return switchLabel;
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = 'haptic-switch';
+        input.setAttribute('switch', '');
+        input.tabIndex = -1;
+        input.setAttribute('aria-hidden', 'true');
+        switchLabel = document.createElement('label');
+        switchLabel.htmlFor = 'haptic-switch';
+        switchLabel.setAttribute('aria-hidden', 'true');
+        switchLabel.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;';
+        switchLabel.appendChild(input);
+        document.body.appendChild(switchLabel);
+        return switchLabel;
+      }
+      function tick() {
+        try {
+          if (canVibrate) { navigator.vibrate(12); return; }
+          getSwitch().click();
+        } catch (e) {}
+      }
+      function double() {
+        try {
+          if (canVibrate) { navigator.vibrate([12, 70, 12]); return; }
+          tick();
+          setTimeout(tick, 110);
+        } catch (e) {}
+      }
+      return { tick, double };
+    })();
+
+    // Single tick for a rep change; double tick when the set reaches its target
+    function hapticForReps(prevActual, newActual, target) {
+      const hitNow = newActual !== null && newActual >= target;
+      const hitBefore = prevActual !== null && prevActual >= target;
+      if (hitNow && !hitBefore) Haptics.double();
+      else Haptics.tick();
+    }
+
     window.updateReps = (id, delta) => {
       const r = records.find(x => x.id === id);
       if (!r) return;
+      const prev = r.actualReps;
       const cur = r.actualReps === null ? r.targetReps : r.actualReps;
-      updateRepsInPlace(id, Math.max(0, cur + delta));
+      const next = Math.max(0, cur + delta);
+      hapticForReps(prev, next, r.targetReps);
+      updateRepsInPlace(id, next);
     };
 
     window.matchTarget = (id) => {
       const r = records.find(x => x.id === id);
       if (!r) return;
+      hapticForReps(r.actualReps, r.targetReps, r.targetReps);
       updateRepsInPlace(id, r.targetReps);
     };
 
@@ -1312,6 +1362,7 @@
     };
 
     window.addSetToExercise = (exerciseName, workoutName) => {
+      Haptics.tick();
       const currentSets = records.filter(r => r.date === activeDate && r.exercise === exerciseName);
       if (!currentSets.length) return;
 
@@ -1343,6 +1394,7 @@
     };
 
     window.removeSetFromExercise = (exerciseName) => {
+      Haptics.tick();
       const currentSets = records.filter(r => r.date === activeDate && r.exercise === exerciseName);
       if (currentSets.length <= 1) {
         showNotification('Cannot remove the only remaining set.');
