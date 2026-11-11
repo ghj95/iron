@@ -211,7 +211,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div>
             <div class="text-xs font-medium text-zinc-200">Strength Progression Curve</div>
-            <div class="text-[11px] font-mono text-zinc-500">Scrub line for date & load data</div>
+            <div id="chart-subtitle" class="text-[11px] font-mono text-zinc-500">Top set per session</div>
           </div>
           <select id="stats-exercise-select" onchange="renderStrengthChart()" class="bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-300 rounded px-2 py-1 focus:outline-none focus:border-zinc-700">
           </select>
@@ -406,6 +406,28 @@
     function saveTemplate() {
       localStorage.setItem(TEMPLATE_KEY_PROD, JSON.stringify(templatePlan));
     }
+
+    // One-time: hold Zercher Squats and RDLs (keep weight even when target is hit)
+    try {
+      const HOLD_MIGRATION_KEY = 'iron_vault_hold_v1';
+      if (!localStorage.getItem(HOLD_MIGRATION_KEY)) {
+        templatePlan.forEach(d => (d.exercises || []).forEach(e => {
+          if (['Zercher Squats', 'Romanian Deadlifts'].includes(e.exercise)) e.hold = true;
+        }));
+        saveTemplate();
+        localStorage.setItem(HOLD_MIGRATION_KEY, '1');
+      }
+    } catch (e) {}
+
+    // Held slot: no automatic progression (deloads still apply). Matched by day name + exercise.
+    function isSlotHeld(workoutName, exerciseName, targetReps = null) {
+      return templatePlan.some(d => d.workout === workoutName && (d.exercises || []).some(e =>
+        e.hold && normalizeExerciseName(e.exercise) === exerciseName &&
+        (targetReps === null || (e.targetReps || 10) === targetReps)
+      ));
+    }
+
+    const LOCK_ICON_SVG = '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 
     let bwHistory = (() => {
       try {
@@ -751,6 +773,11 @@
       return inRange.length ? inRange : findLatestSessionSets(exerciseName, null, { ignoreDeload });
     }
 
+    // A heavy set: target of 3-5 reps (the wave-loading range)
+    function isHeavySet(r) {
+      return r.targetReps >= 3 && r.targetReps <= 5;
+    }
+
     // Wave loading (5/4/3) only applies to heavy Big 3 slots (template target 3-5 reps).
     function isWaveSlot(exerciseName, templateTargetReps) {
       return BIG_3.includes(exerciseName) && templateTargetReps >= 3 && templateTargetReps <= 5;
@@ -767,12 +794,15 @@
       templatePlan.forEach(d => d.exercises.forEach(e => {
         const name = normalizeExerciseName(e.exercise);
         const tgt = e.targetReps || 10;
-        slotMap.set(name + '|' + tgt, { ex: name, tgt });
+        const key = name + '|' + tgt;
+        const prev = slotMap.get(key);
+        slotMap.set(key, { ex: name, tgt, held: !!e.hold || (prev ? prev.held : false) });
       }));
       const templateSlots = Array.from(slotMap.values());
 
       let qualifiedCount = 0;
-      templateSlots.forEach(({ ex, tgt }) => {
+      templateSlots.forEach(({ ex, tgt, held }) => {
+        if (held) return;
         const lastSets = getBaselineSets(ex, tgt, false);
         const isPriorDeload = lastSets.some(s => isRecordDeload(s));
         if (!isPriorDeload && lastSets.length > 0) {
@@ -915,6 +945,11 @@
             if (useWave && isBig3) {
               nextTargetReps = [3, 4, 5].includes(waveCurrentReps) ? waveCurrentReps : 5;
             }
+          } else if (exItem.hold) {
+            // Held: keep last normal weight even if the target was hit.
+            // After a deload, lastSets is already the pre-deload session, so this returns to the held weight.
+            nw = baseW;
+            nextTargetReps = (useWave && isBig3 && [3, 4, 5].includes(waveCurrentReps)) ? waveCurrentReps : templateTargetReps;
           } else if (useWave && isBig3) {
             const stepInc = roundVal > 0 ? roundVal : 2.5;
             if (wasDeload) {
@@ -1594,6 +1629,9 @@
           ? '<span class="text-[10px] font-mono font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.5 rounded">+' + weightDelta + '</span>'
           : '';
 
+        const heldHtml = isSlotHeld(g.workout, g.exercise, dominantTargetReps)
+          ? '<span title="Held: no automatic progression" class="flex-shrink-0 text-zinc-500">' + LOCK_ICON_SVG + '</span>'
+          : '';
         const deloadDrop = isCurrentDeload ? getDeloadWeightDrop(g.exercise, activeDate, currentGroupMaxWeight, dominantTargetReps, g.workout) : 0;
         const deloadBadgeHtml = deloadDrop > 0
           ? deloadDropBadge(deloadDrop, 'text-[10px] px-1.5 py-0.5')
@@ -1620,6 +1658,7 @@
             '<div class="px-3 py-2 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between gap-2">' +
               '<div class="flex items-center gap-2 min-w-0">' +
                 '<span class="text-xs font-medium text-zinc-200">' + escapeHTML(g.exercise) + '</span>' +
+                heldHtml +
                 deloadBadgeHtml +
                 badgeHtml +
                 '<span class="hidden sm:inline text-[10px] font-mono text-zinc-500 uppercase">' + escapeHTML(g.workout) + '</span>' +
@@ -1872,8 +1911,9 @@
 
       if (isBig3Aggregate) {
         // Collect all dates chronologically where any non-deload completed sets exist
+        // Heavy days only (target 3-5 reps), so light days don't skew the curve
         const allCompleted = records
-          .filter(r => r.actualReps !== null && r.actualReps > 0 && !isRecordDeload(r))
+          .filter(r => r.actualReps !== null && r.actualReps > 0 && !isRecordDeload(r) && isHeavySet(r))
           .sort((a, b) => new Date(a.date) - new Date(b.date));
 
         const chronologicalDates = Array.from(new Set(allCompleted.map(r => r.date))).sort();
@@ -1900,22 +1940,46 @@
           }
         });
       } else {
+        // Big 3 lifts: heavy days only (target 3-5 reps); light days follow a different curve
+        const heavyOnly = BIG_3.includes(ex);
         const completedEx = records
           .filter(r => r.exercise === ex && r.actualReps !== null && r.actualReps > 0 && !isRecordDeload(r))
+          .filter(r => !heavyOnly || isHeavySet(r))
           .sort((a, b) => new Date(a.date) - new Date(b.date));
 
+        // Top set per session: heaviest weight, then most reps at that weight
         const dateMap = {};
         completedEx.forEach(r => {
-          if (!dateMap[r.date] || r.weight > dateMap[r.date]) {
-            dateMap[r.date] = r.weight;
+          const cur = dateMap[r.date];
+          if (!cur || r.weight > cur.weight || (r.weight === cur.weight && r.actualReps > cur.reps)) {
+            dateMap[r.date] = { weight: r.weight, reps: r.actualReps };
           }
         });
+        // All reps done at the top weight that day, for the readout (e.g. 4, 4, 3)
+        Object.keys(dateMap).forEach(d => {
+          dateMap[d].allReps = completedEx
+            .filter(r => r.date === d && r.weight === dateMap[d].weight)
+            .sort((a, b) => a.set - b.set)
+            .map(r => r.actualReps);
+        });
 
-        points = Object.keys(dateMap).sort().map(d => ({ date: d, weight: dateMap[d] }));
+        points = Object.keys(dateMap).sort().map(d => ({ date: d, ...dateMap[d] }));
+      }
+
+      const subtitle = document.getElementById('chart-subtitle');
+      if (subtitle) {
+        subtitle.textContent = isBig3Aggregate
+          ? 'Est. 1RM total · heavy days (3-5 reps)'
+          : BIG_3.includes(ex)
+          ? 'Top set · heavy days (3-5 reps)'
+          : 'Top set per session';
       }
 
       if (points.length < 2) {
-        container.innerHTML = '<div class="h-full flex items-center justify-center text-zinc-600 text-xs font-mono">Not enough historical data points for this lift yet.</div>';
+        const msg = (isBig3Aggregate || BIG_3.includes(ex))
+          ? 'Not enough heavy-day (3-5 rep) sessions for this yet.'
+          : 'Not enough historical data points for this lift yet.';
+        container.innerHTML = '<div class="h-full flex items-center justify-center text-zinc-500 text-xs font-mono text-center px-4">' + msg + '</div>';
         return;
       }
 
@@ -1929,7 +1993,7 @@
       const H = Math.max(160, Math.round(container.clientHeight || 220));
       const padL = 40;
       const padR = 12;
-      const padT = 14;
+      const padT = 22;
       const padB = 24;
 
       // X position by actual date, so gaps in training show up as gaps
@@ -1951,6 +2015,22 @@
       const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const fmtDate = (d) => { const o = new Date(d + 'T00:00:00'); return `${MON[o.getMonth()]} ${o.getDate()}`; };
       const dotR = coords.length > 40 ? 0 : 3;
+
+      // Reps of the top set above each point (single exercises only); skip labels that would collide
+      let repLabelsSvg = '';
+      if (!isBig3Aggregate) {
+        let lastLabelX = -Infinity;
+        coords.forEach((pt, i) => {
+          const isLast = i === coords.length - 1;
+          if (!isLast && pt.x - lastLabelX < 20) return;
+          if (isLast && pt.x - lastLabelX < 20 && repLabelsSvg) {
+            // always label the latest point; drop the previous label instead
+            repLabelsSvg = repLabelsSvg.slice(0, repLabelsSvg.lastIndexOf('<text'));
+          }
+          repLabelsSvg += `<text data-rep-idx="${i}" x="${pt.x}" y="${pt.y - 8}" fill="#d4d4d8" font-size="10" text-anchor="middle" font-family="ui-monospace, monospace">×${pt.reps}</text>`;
+          lastLabelX = pt.x;
+        });
+      }
 
       container.innerHTML = `
         <svg id="strength-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" class="block overflow-visible touch-none">
@@ -1979,6 +2059,8 @@
             <circle cx="${pt.x}" cy="${pt.y}" r="${dotR}" fill="#09090b" stroke="#10b981" stroke-width="2"/>
           `).join('') : ''}
 
+          ${repLabelsSvg}
+
           <g id="chart-scrubber" class="hidden pointer-events-none">
             <line id="scrub-line" x1="0" y1="${padT}" x2="0" y2="${H - padB}" stroke="#52525b" stroke-width="1" stroke-dasharray="2 2" />
             <circle id="scrub-pt" cx="0" cy="0" r="4.5" fill="#10b981" stroke="#09090b" stroke-width="2" />
@@ -2001,13 +2083,19 @@
         const currentSvgX = (clientX - rect.left) * scaleX;
 
         let closest = chartPointsCache[0];
+        let closestIdx = 0;
         let minDist = Infinity;
-        chartPointsCache.forEach(pt => {
+        chartPointsCache.forEach((pt, i) => {
           const d = Math.abs(pt.x - currentSvgX);
           if (d < minDist) {
             minDist = d;
             closest = pt;
+            closestIdx = i;
           }
+        });
+        // The readout already shows the reps; hide that point's label so it isn't covered
+        svgEl.querySelectorAll('text[data-rep-idx]').forEach(t => {
+          t.style.visibility = Number(t.dataset.repIdx) === closestIdx ? 'hidden' : '';
         });
 
         scrubber.classList.remove('hidden');
@@ -2019,11 +2107,14 @@
         const screenX = (closest.x / W) * rect.width;
         const screenY = (closest.y / H) * rect.height;
 
-        const labelSuffix = isBig3Aggregate ? 'Total' : 'lbs';
-        tooltip.innerHTML = `<span class="text-emerald-400 font-bold">${closest.weight} lbs</span> · ${labelSuffix} (${closest.date.slice(5)})`;
-        tooltip.style.left = Math.min(Math.max(screenX, 60), rect.width - 60) + 'px';
+        tooltip.innerHTML = isBig3Aggregate
+          ? `<span class="text-emerald-400 font-bold">${closest.weight} lbs</span> · Total (${closest.date.slice(5)})`
+          : `<span class="text-emerald-400 font-bold">${closest.weight} lbs</span> × ${(closest.allReps || [closest.reps]).join(', ')} (${closest.date.slice(5)})`;
         tooltip.style.top = screenY + 'px';
         tooltip.classList.remove('hidden');
+        // Keep the readout fully inside the chart (it's centred on the point)
+        const half = tooltip.offsetWidth / 2;
+        tooltip.style.left = Math.min(Math.max(screenX, half + 2), rect.width - half - 2) + 'px';
       }
 
       if (svgEl) {
@@ -2036,6 +2127,7 @@
           if (e.pointerType !== 'mouse') return;
           if (scrubber) scrubber.classList.add('hidden');
           if (tooltip) tooltip.classList.add('hidden');
+          svgEl.querySelectorAll('text[data-rep-idx]').forEach(t => { t.style.visibility = ''; });
         });
       }
     };
@@ -2088,6 +2180,16 @@
       templatePlan[dIdx].exercises.splice(eIdx, 1);
       saveTemplate();
       renderPlanView();
+    };
+
+    window.toggleTemplateHold = (dIdx, eIdx) => {
+      const ex = templatePlan[dIdx].exercises[eIdx];
+      ex.hold = !ex.hold;
+      saveTemplate();
+      renderPlanView();
+      showNotification(ex.hold
+        ? `${ex.exercise}: held. Weight stays the same each week.`
+        : `${ex.exercise}: progresses normally again.`);
     };
 
     window.updateTemplateExercise = (dIdx, eIdx, field, val) => {
@@ -2145,6 +2247,12 @@
                   class="w-8 bg-transparent text-center text-zinc-300 font-mono focus:outline-none border-b border-transparent hover:border-zinc-800 focus:border-zinc-600"
                 />
               </div>
+              <button 
+                onclick="toggleTemplateHold(${dIdx}, ${eIdx})" 
+                title="${ex.hold ? 'Held: no automatic progression (tap to release)' : 'Hold weight (no automatic progression)'}" 
+                aria-pressed="${ex.hold ? 'true' : 'false'}"
+                class="${ex.hold ? 'text-amber-400 bg-amber-950/60 border-amber-800/60' : 'text-zinc-700 hover:text-zinc-400 border-transparent'} border rounded p-0.5 transition touch-btn ml-1"
+              >${LOCK_ICON_SVG}</button>
               <button 
                 onclick="removeTemplateExercise(${dIdx}, ${eIdx})" 
                 title="Remove Movement" 
