@@ -773,6 +773,24 @@
       return inRange.length ? inRange : findLatestSessionSets(exerciseName, null, { ignoreDeload });
     }
 
+    // Base weight for next week from last session's sets:
+    //  - one weight for all sets: that weight
+    //  - weights varied, every set hit its target: the median weight (lower middle on an even count,
+    //    so it's always a weight actually lifted); counts as a completed session
+    //  - weights varied, some reps missed: the heaviest weight attempted, no progression
+    function getSessionBaseline(sets) {
+      if (!sets.length) return { baseW: 0, allHit: false };
+      const weights = sets.map(s => s.weight || 0);
+      const allHit = sets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
+      const uniform = weights.every(w => w === weights[0]);
+      if (uniform) return { baseW: weights[0], allHit };
+      if (allHit) {
+        const sorted = weights.slice().sort((a, b) => a - b);
+        return { baseW: sorted[Math.floor((sorted.length - 1) / 2)], allHit };
+      }
+      return { baseW: Math.max(...weights), allHit };
+    }
+
     // A heavy set: target of 3-5 reps (the wave-loading range)
     function isHeavySet(r) {
       return r.targetReps >= 3 && r.targetReps <= 5;
@@ -806,11 +824,9 @@
         const lastSets = getBaselineSets(ex, tgt, false);
         const isPriorDeload = lastSets.some(s => isRecordDeload(s));
         if (!isPriorDeload && lastSets.length > 0) {
-          const baseW = lastSets[0].weight;
-          const uniformW = lastSets.every(s => s.weight === baseW);
-          const metTarget = lastSets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
+          const { baseW, allHit } = getSessionBaseline(lastSets);
           const isCalisthenics = CALISTHENICS_EXERCISES.includes(ex);
-          if (uniformW && metTarget && (baseW > 0 || isCalisthenics)) qualifiedCount++;
+          if (allHit && (baseW > 0 || isCalisthenics)) qualifiedCount++;
         }
       });
 
@@ -908,15 +924,14 @@
           let waveCurrentReps = 5;
 
           if (lastSets.length > 0) {
-            baseW = lastSets[0].weight;
+            const baseline = getSessionBaseline(lastSets);
+            baseW = baseline.baseW;
             waveCurrentReps = lastSets[0].targetReps || 5;
 
             // Only allow progression if the immediate previous week was completed and was NOT a deload
             if (!wasDeload) {
-              const uniformW = lastSets.every(s => s.weight === baseW);
-              const metTarget = lastSets.every(s => s.actualReps !== null && s.actualReps >= s.targetReps);
               const isCalisthenics = CALISTHENICS_EXERCISES.includes(exerciseName);
-              canProg = uniformW && metTarget && (baseW > 0 || isCalisthenics);
+              canProg = baseline.allHit && (baseW > 0 || isCalisthenics);
             }
           }
 
