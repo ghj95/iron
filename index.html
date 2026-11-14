@@ -187,7 +187,7 @@
         <div class="px-3.5 py-2.5 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between">
           <div>
             <div class="text-xs font-medium text-zinc-200">Big 3</div>
-            <div class="text-[11px] font-mono text-zinc-500">Peak wt, reps & estimated 1RM</div>
+            <div class="text-[11px] font-mono text-zinc-500">Best heavy-day set (3-5 reps) & est. 1RM</div>
           </div>
           <span class="text-[10px] font-mono text-zinc-500 uppercase">Core Lifts</span>
         </div>
@@ -196,8 +196,8 @@
             <thead class="bg-zinc-900/90 text-zinc-400 font-mono text-[11px] border-b border-zinc-800">
               <tr>
                 <th class="py-2 px-3 font-normal">Exercise</th>
-                <th class="py-2 px-3 text-right font-normal">Max Wt</th>
-                <th class="py-2 px-3 text-center font-normal">Reps @ PR</th>
+                <th class="py-2 px-3 text-right font-normal">Wt</th>
+                <th class="py-2 px-3 text-center font-normal">Reps</th>
                 <th class="py-2 px-3 text-right font-normal">Est 1RM</th>
                 <th class="py-2 px-3 font-normal">Date</th>
               </tr>
@@ -1885,21 +1885,15 @@
         prMap[ex] = { exercise: ex, weight: 0, reps: 0, e1rm: 0, date: '-' };
       });
 
+      // Best heavy-day set (target 3-5 reps) per lift: the row's weight, reps, date and est. 1RM
+      // all come from that one set. High-rep sets are left out because the formula inflates them.
       completed.forEach(r => {
-        if (!BIG_3.includes(r.exercise)) return;
+        if (!BIG_3.includes(r.exercise) || !isHeavySet(r)) return;
         const ex = r.exercise;
         const e1rm = calculateEstimated1RM(ex, r.weight, r.actualReps, r.date);
-        
-        if (r.weight > prMap[ex].weight || (r.weight === prMap[ex].weight && r.actualReps > prMap[ex].reps)) {
-          prMap[ex] = {
-            exercise: ex,
-            weight: r.weight,
-            reps: r.actualReps,
-            date: r.date,
-            e1rm: e1rm
-          };
-        } else if (e1rm > prMap[ex].e1rm) {
-          prMap[ex].e1rm = e1rm;
+        const cur = prMap[ex];
+        if (e1rm > cur.e1rm || (e1rm === cur.e1rm && r.weight > cur.weight)) {
+          prMap[ex] = { exercise: ex, weight: r.weight, reps: r.actualReps, date: r.date, e1rm };
         }
       });
 
@@ -1913,7 +1907,7 @@
 
       // All-time best as of 30 days ago, so both numbers measure the same thing
       completed.filter(r => new Date(r.date) < windowStart).forEach(r => {
-        if (!BIG_3.includes(r.exercise)) return;
+        if (!BIG_3.includes(r.exercise) || !isHeavySet(r)) return;
         const e1rm = calculateEstimated1RM(r.exercise, r.weight, r.actualReps, r.date);
         if (e1rm > prMapPrior[r.exercise]) prMapPrior[r.exercise] = e1rm;
       });
@@ -1924,10 +1918,13 @@
       });
 
       const delta = Math.round(big3TotalNow - big3TotalPrior);
+      // A total is only meaningful once all three lifts have heavy-day data; otherwise it's a partial sum
+      const nowComplete = BIG_3.every(ex => prMap[ex].e1rm > 0);
+      const priorComplete = BIG_3.every(ex => prMapPrior[ex] > 0);
 
-      document.getElementById('metric-b5-now').innerText = Math.round(big3TotalNow).toLocaleString() + ' lbs';
-      document.getElementById('metric-b5-past').innerText = Math.round(big3TotalPrior).toLocaleString() + ' lbs';
-      document.getElementById('metric-b5-delta').innerText = delta >= 0 ? `+${delta} lbs` : `${delta} lbs`;
+      document.getElementById('metric-b5-now').innerText = nowComplete ? Math.round(big3TotalNow).toLocaleString() + ' lbs' : '—';
+      document.getElementById('metric-b5-past').innerText = priorComplete ? Math.round(big3TotalPrior).toLocaleString() + ' lbs' : '—';
+      document.getElementById('metric-b5-delta').innerText = (nowComplete && priorComplete) ? (delta >= 0 ? `+${delta} lbs` : `${delta} lbs`) : '—';
       document.getElementById('metric-total-wo').innerText = sessionsSet.size;
       document.getElementById('metric-year-wo').innerText = yearSessionsSet.size;
       document.getElementById('metric-year-label').innerText = `sessions in ${currentYear}`;
