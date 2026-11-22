@@ -34,9 +34,46 @@
       -webkit-user-select: auto !important;
       user-select: auto !important;
     }
-    .touch-btn { touch-action: manipulation; 
+    .touch-btn { touch-action: manipulation;
     }
     .set-row { scroll-margin-bottom: 9rem;
+    }
+
+    /* ===== Celebrations (new PR, week complete) ===== */
+    .celebrate-overlay { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; padding: 1.5rem; background: rgba(9, 9, 11, .9); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); opacity: 0; transition: opacity .2s ease; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; -webkit-user-select: none; user-select: none; }
+    .celebrate-overlay.show { opacity: 1; }
+    .celebrate-card { width: 100%; max-width: 20rem; text-align: center; transform: scale(.92) translateY(8px); transition: transform .4s cubic-bezier(.2, 1.3, .4, 1); }
+    .celebrate-overlay.show .celebrate-card { transform: scale(1) translateY(0); }
+    .celebrate-kicker { font-size: 11px; font-weight: 700; letter-spacing: .3em; color: #57cc98; }
+    .celebrate-kicker.amber { color: #e5a548; }
+    .celebrate-title { margin-top: .5rem; font-size: 14px; color: #d8dde1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 500; }
+    .celebrate-num { position: relative; margin: 1.75rem auto 0; width: 9rem; height: 9rem; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .celebrate-num::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 1px solid #22282d; }
+    .celebrate-ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #57cc98; opacity: 0; animation: celebrate-ring 1.4s ease-out .15s 2; }
+    .celebrate-ring.d2 { animation-delay: .55s; }
+    .celebrate-big { position: relative; font-size: 3rem; line-height: 1; font-weight: 700; color: #f4f4f5; font-variant-numeric: tabular-nums; }
+    .celebrate-unit { position: relative; margin-top: .4rem; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #75808a; }
+    .celebrate-delta { display: inline-block; margin-top: 1.5rem; padding: .25rem .6rem; border: 1px solid rgba(27, 87, 67, .6); background: rgba(11, 42, 32, .6); color: #57cc98; border-radius: .25rem; font-size: 12px; font-weight: 600; opacity: 0; animation: celebrate-fade .4s ease-out .6s forwards; }
+    .celebrate-sub { margin-top: .75rem; font-size: 12px; color: #9aa5ae; }
+    .celebrate-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-top: 1.5rem; opacity: 0; animation: celebrate-fade .4s ease-out .5s forwards; }
+    .celebrate-stat { border: 1px solid #22282d; background: #0d1013; border-radius: .375rem; padding: .6rem .7rem; text-align: left; }
+    .celebrate-stat .v { font-size: 1.125rem; font-weight: 700; color: #eaeef0; line-height: 1.2; }
+    .celebrate-stat .v.green { color: #57cc98; }
+    .celebrate-stat .l { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #75808a; }
+    .celebrate-prs { margin-top: .75rem; font-size: 11px; color: #9aa5ae; opacity: 0; animation: celebrate-fade .4s ease-out .7s forwards; }
+    .celebrate-prs b { color: #57cc98; font-weight: 600; }
+    .celebrate-flame { position: relative; width: 1.75rem; height: 1.75rem; color: #57cc98; margin-bottom: .35rem; animation: celebrate-flame 1.6s ease-in-out .4s infinite; }
+    .celebrate-bar { margin: 1.75rem auto 0; width: 6rem; height: 2px; border-radius: 1px; background: #22282d; overflow: hidden; }
+    .celebrate-bar span { display: block; height: 100%; background: #57cc98; transform-origin: left; animation: celebrate-bar linear forwards; }
+    .celebrate-hint { margin-top: 1rem; font-size: 10px; color: #55606a; }
+    @keyframes celebrate-ring { 0% { transform: scale(.85); opacity: .8; } 100% { transform: scale(1.45); opacity: 0; } }
+    @keyframes celebrate-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes celebrate-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+    @keyframes celebrate-flame { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+    @media (prefers-reduced-motion: reduce) {
+      .celebrate-card, .celebrate-overlay { transition: none; }
+      .celebrate-ring, .celebrate-flame { animation: none; }
+      .celebrate-delta, .celebrate-stats, .celebrate-prs { animation: none; opacity: 1; }
     }
   </style>
 </head>
@@ -105,21 +142,21 @@
     <div id="weekly-set-badge" class="font-mono text-[11px] text-zinc-400"></div>
 
     <div id="search-container" class="hidden">
-      <input 
-        type="text" 
-        id="search-input" 
-        placeholder="Filter" 
+      <input
+        type="text"
+        id="search-input"
+        placeholder="Filter"
         onfocus="this.select()"
         class="bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-200 rounded px-2.5 py-1 w-36 md:w-44 focus:outline-none focus:border-zinc-700"
       >
     </div>
     <div id="bw-container" class="hidden flex items-center gap-1.5 font-mono text-xs text-zinc-400">
       <label for="input-user-bw" class="text-[11px] text-zinc-500">BW</label>
-      <input 
-        type="number" 
-        id="input-user-bw" 
+      <input
+        type="number"
+        id="input-user-bw"
         inputmode="decimal"
-        step="0.5" 
+        step="0.5"
         placeholder="175"
         onfocus="this.select()"
         onchange="updateUserBW(this.value)"
@@ -227,8 +264,8 @@
         <div class="text-xs font-medium text-zinc-200">Weekly Template</div>
       </div>
       <div id="plan-day-list" class="space-y-4"></div>
-      <button 
-        onclick="addTemplateDay()" 
+      <button
+        onclick="addTemplateDay()"
         class="w-full py-2.5 text-xs font-mono rounded border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 transition active:scale-[0.99] touch-btn flex items-center justify-center gap-1.5"
       >
         <span></span> Add Day
@@ -248,15 +285,15 @@
           </svg>
         </button>
       </div>
-      
+
       <div class="p-4 space-y-3">
         <!-- Toggles: Wave Loading & Deload -->
         <div class="grid grid-cols-2 gap-2 pb-1 border-b border-zinc-900">
           <label class="flex items-center gap-2 p-2 rounded bg-zinc-900/60 border border-zinc-800 cursor-pointer select-none">
-            <input 
-              type="checkbox" 
-              id="toggle-wave-loading" 
-              checked 
+            <input
+              type="checkbox"
+              id="toggle-wave-loading"
+              checked
               class="rounded bg-zinc-950 border-zinc-700 text-emerald-500 focus:ring-0 w-3.5 h-3.5"
             />
             <div class="flex flex-col">
@@ -266,10 +303,10 @@
           </label>
 
           <label class="flex items-center gap-2 p-2 rounded bg-zinc-900/60 border border-zinc-800 cursor-pointer select-none">
-            <input 
-              type="checkbox" 
-              id="toggle-deload" 
-              class="rounded bg-zinc-950 border-zinc-700 text-amber-500 focus:ring-0 w-3.5 h-3.5" 
+            <input
+              type="checkbox"
+              id="toggle-deload"
+              class="rounded bg-zinc-950 border-zinc-700 text-amber-500 focus:ring-0 w-3.5 h-3.5"
               onchange="handleDeloadToggle(this.checked)"
             />
             <div class="flex flex-col">
@@ -308,14 +345,14 @@
             <span class="text-zinc-200 font-bold" id="val-pct-display">5%</span>
           </div>
           <div class="flex items-center gap-2">
-            <input 
-              type="number" 
+            <input
+              type="number"
               inputmode="decimal"
-              id="input-pct-increase" 
-              value="5" 
-              step="0.5" 
-              min="-50" 
-              max="50" 
+              id="input-pct-increase"
+              value="5"
+              step="0.5"
+              min="-50"
+              max="50"
               onfocus="this.select()"
               oninput="document.getElementById('val-pct-display').innerText = this.value + '%'"
               class="w-20 bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-100 text-xs focus:outline-none focus:border-zinc-600"
@@ -328,14 +365,14 @@
         <div>
           <div class="text-zinc-400 mb-1">Plate Rounding</div>
           <div class="flex items-center gap-2">
-            <input 
-              type="number" 
+            <input
+              type="number"
               inputmode="decimal"
-              id="input-rounding" 
-              value="2.5" 
-              step="0.5" 
-              min="0" 
-              max="50" 
+              id="input-rounding"
+              value="2.5"
+              step="0.5"
+              min="0"
+              max="50"
               onfocus="this.select()"
               class="w-20 bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-100 text-xs focus:outline-none focus:border-zinc-600"
             />
@@ -355,6 +392,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Celebration overlay (new PR, week complete). Filled by showNextCelebration() -->
+  <div id="celebrate-overlay" class="celebrate-overlay" role="dialog" aria-modal="true" aria-live="assertive" onclick="closeCelebration()"></div>
 
   <script>
     const STORAGE_KEY_PROD = 'iron_vault_prod';
@@ -563,12 +603,15 @@
       return { streak, thisWeekCount, weekDone: thisWeekCount >= STREAK_WORKOUTS_PER_WEEK };
     }
 
+    const FLAME_PATH = 'M12 2c1 3.5-1.5 5.5-3 7.5C7.6 11.4 7 13 7 14.5 7 17.5 9.2 20 12 20s5-2.5 5-5.5c0-1.6-.7-3-1.6-4.1-.3 1.3-1 2.3-2 2.8.4-2.9-.4-5.9-1.4-11.2Z';
+
     function updateWeeklyBadge() {
       const badge = document.getElementById('weekly-set-badge');
       if (!badge) return;
       const { streak, thisWeekCount, weekDone } = getStreak();
-      const flame = `<svg class="w-3 h-3 ${streak > 0 ? (weekDone ? 'text-emerald-400' : 'text-amber-400') : 'text-zinc-600'}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c1 3.5-1.5 5.5-3 7.5C7.6 11.4 7 13 7 14.5 7 17.5 9.2 20 12 20s5-2.5 5-5.5c0-1.6-.7-3-1.6-4.1-.3 1.3-1 2.3-2 2.8.4-2.9-.4-5.9-1.4-11.2Z"/></svg>`;
-      badge.title = `Streak: ${streak} week${streak === 1 ? '' : 's'} in a row with ${STREAK_WORKOUTS_PER_WEEK}+ workouts · this week ${thisWeekCount}/${STREAK_WORKOUTS_PER_WEEK}`;
+      const flame = `<svg class="w-3 h-3 ${streak > 0 ? (weekDone ? 'text-emerald-400' : 'text-amber-400') : 'text-zinc-600'}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="${FLAME_PATH}"/></svg>`;
+      badge.title = `Streak: ${streak} week${streak === 1 ? '' : 's'} in a row with ${STREAK_WORKOUTS_PER_WEEK}+ workouts · this week ${thisWeekCount}/${STREAK_WORKOUTS_PER_WEEK} · tap for last week recap`;
+      badge.classList.add('cursor-pointer', 'touch-btn');
       badge.innerHTML = `
         <span class="inline-flex items-center gap-1">
           ${flame}
@@ -665,8 +708,8 @@
     const todayStr = getTodayString();
     const availableDates = getUniqueDates();
     const nextPlannedDate = [...availableDates].reverse().find(d => d > todayStr);
-    let activeDate = availableDates.includes(todayStr) 
-      ? todayStr 
+    let activeDate = availableDates.includes(todayStr)
+      ? todayStr
       : (nextPlannedDate || availableDates[0] || todayStr);
     let searchFilter = '';
 
@@ -778,8 +821,8 @@
     function isRecordDeload(r) {
       if (!r) return false;
       return Boolean(
-        r.isDeload === true || 
-        r.isDeload === 'true' || 
+        r.isDeload === true ||
+        r.isDeload === 'true' ||
         (r.workout && r.workout.toLowerCase().includes('deload'))
       );
     }
@@ -1122,8 +1165,8 @@
       saveState();
       render();
 
-      const notifMsg = isDeload 
-        ? `Deload week generated (${pctIncrease}% load).` 
+      const notifMsg = isDeload
+        ? `Deload week generated (${pctIncrease}% load).`
         : `New week generated from template: ${progCount} exercises progressed.`;
       showNotification(notifMsg);
     };
@@ -1285,6 +1328,8 @@
             if (historyStack.length > 10) historyStack.shift();
             records = imported.sort((a, b) => new Date(b.date) - new Date(a.date));
             activeDate = records[0].date;
+            // Imported history is old news: no celebrations for PRs or weeks already in the file
+            seedCelebrations();
             saveState();
             render();
             showNotification(`Imported and validated ${imported.length} rows.`);
@@ -1367,6 +1412,7 @@
       saveState();
       if (field === 'date') renderDateTabs();
       if (['weight', 'actualReps', 'targetReps', 'date', 'exercise', 'set'].includes(field)) refreshPRBadges();
+      if (field === 'weight' || field === 'actualReps') checkCelebrations();
     };
 
     // Reps colour: faded when empty, green when target hit, amber when missed
@@ -1389,6 +1435,7 @@
       renderDateTabs();
       updateWeeklyBadge();
       refreshPRBadges();
+      checkCelebrations();
     }
 
     // ===== PRs: a heavy Big 3 set (target 3-5) whose est. 1RM beats every earlier heavy set of that lift =====
@@ -1523,6 +1570,224 @@
       else hapticForReps(prev, r.targetReps, r.targetReps);
     };
 
+    // ===== Celebrations =====
+    // Full-screen card when a set becomes a new Big 3 PR, and when every planned set of a week (Mon-Sun) is logged.
+    // Each PR set and each week celebrates once: the ids are remembered on this device, so tapping
+    // reps down and back up, editing, or undo never replays it.
+    const CELEBRATED_PRS_KEY = 'iron_vault_celebrated_prs';
+    const CELEBRATED_WEEKS_KEY = 'iron_vault_celebrated_weeks';
+    const PR_CARD_MS = 5000; // PR card closes on its own (mid-workout); the week card waits for a tap
+    function loadIdSet(key) {
+      try {
+        const v = JSON.parse(localStorage.getItem(key));
+        return Array.isArray(v) ? new Set(v) : null;
+      } catch (e) { return null; }
+    }
+    function saveIdSet(key, set) {
+      try { localStorage.setItem(key, JSON.stringify(Array.from(set))); } catch (e) {}
+    }
+    let celebratedPRs = loadIdSet(CELEBRATED_PRS_KEY);
+    let celebratedWeeks = loadIdSet(CELEBRATED_WEEKS_KEY);
+
+    // Weeks (Monday keys) that have sets and every one of them logged
+    function getCompletedWeeks() {
+      const byWeek = {};
+      records.forEach(r => {
+        const w = weekStartKey(r.date);
+        const o = byWeek[w] || (byWeek[w] = { total: 0, logged: 0 });
+        o.total++;
+        if (r.actualReps !== null) o.logged++;
+      });
+      return Object.keys(byWeek).filter(w => byWeek[w].total > 0 && byWeek[w].logged === byWeek[w].total).sort();
+    }
+
+    // Mark everything already done as celebrated, so only new moments fire (first run, CSV import)
+    function seedCelebrations() {
+      computePRSetIds();
+      celebratedPRs = new Set([...(celebratedPRs || []), ...prSetIds]);
+      celebratedWeeks = new Set([...(celebratedWeeks || []), ...getCompletedWeeks()]);
+      saveIdSet(CELEBRATED_PRS_KEY, celebratedPRs);
+      saveIdSet(CELEBRATED_WEEKS_KEY, celebratedWeeks);
+    }
+
+    // Best est. 1RM of that lift before this set (same rules and order as computePRSetIds)
+    function getPriorBestE1rm(rec) {
+      let best = 0;
+      records.forEach(r => {
+        if (r.id === rec.id || r.exercise !== rec.exercise || !isHeavySet(r) || isRecordDeload(r)) return;
+        if (r.actualReps === null || r.actualReps <= 0) return;
+        const before = r.date < rec.date || (r.date === rec.date && (r.set || 0) < (rec.set || 0));
+        if (!before) return;
+        best = Math.max(best, calculateEstimated1RM(r.exercise, r.weight, r.actualReps, r.date));
+      });
+      return best;
+    }
+
+    const celebrationQueue = [];
+    let celebrationOpen = false;
+    let celebrationTimer = null;
+    let celebrationClosing = false;
+
+    function checkCelebrations() {
+      if (!celebratedPRs || !celebratedWeeks) seedCelebrations();
+      // New PRs: one card per lift, its best new set
+      const fresh = Array.from(prSetIds).filter(id => !celebratedPRs.has(id));
+      if (fresh.length) {
+        fresh.forEach(id => celebratedPRs.add(id));
+        saveIdSet(CELEBRATED_PRS_KEY, celebratedPRs);
+        const byLift = {};
+        fresh.map(id => records.find(r => r.id === id)).filter(Boolean).forEach(r => {
+          const e = calculateEstimated1RM(r.exercise, r.weight, r.actualReps, r.date);
+          if (!byLift[r.exercise] || e > byLift[r.exercise].e) byLift[r.exercise] = { r, e };
+        });
+        Object.values(byLift).forEach(({ r }) => celebrationQueue.push({ type: 'pr', id: r.id }));
+      }
+      // Newly completed week (shown after any PR card, so the last set of the week can be both)
+      const newWeeks = getCompletedWeeks().filter(w => !celebratedWeeks.has(w));
+      if (newWeeks.length) {
+        newWeeks.forEach(w => celebratedWeeks.add(w));
+        saveIdSet(CELEBRATED_WEEKS_KEY, celebratedWeeks);
+        celebrationQueue.push({ type: 'week', week: newWeeks[newWeeks.length - 1] });
+        Haptics.triple();
+      }
+      if (!celebrationOpen && celebrationQueue.length) showNextCelebration();
+    }
+
+    function fmtShortDate(key) {
+      const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const d = new Date(key + 'T00:00:00');
+      return `${MON[d.getMonth()]} ${d.getDate()}`;
+    }
+
+    function prCardHtml(id) {
+      const r = records.find(x => x.id === id);
+      if (!r || r.actualReps === null) return '';
+      const e1rm = calculateEstimated1RM(r.exercise, r.weight, r.actualReps, r.date);
+      const prior = getPriorBestE1rm(r);
+      const isCal = CALISTHENICS_EXERCISES.includes(r.exercise);
+      return `
+        <div class="celebrate-card">
+          <div class="celebrate-kicker">NEW PR</div>
+          <div class="celebrate-title">${escapeHTML(r.exercise)}</div>
+          <div class="celebrate-num">
+            <div class="celebrate-ring"></div><div class="celebrate-ring d2"></div>
+            <div class="celebrate-big" data-count-from="${prior}" data-count-to="${e1rm}">${e1rm}</div>
+            <div class="celebrate-unit">est. 1RM${isCal ? ' · added' : ''}</div>
+          </div>
+          ${prior > 0 ? `<div class="celebrate-delta">+${e1rm - prior} over ${prior}</div>` : ''}
+          <div class="celebrate-sub">${isCal ? '+' : ''}${r.weight} lbs × ${r.actualReps}</div>
+          <div class="celebrate-bar"><span style="animation-duration:${PR_CARD_MS}ms"></span></div>
+          <div class="celebrate-hint">tap to close</div>
+        </div>`;
+    }
+
+    function getWeekRecap(weekKey) {
+      const end = addDaysKey(weekKey, 7);
+      const rows = records.filter(r => r.date >= weekKey && r.date < end);
+      const logged = rows.filter(r => r.actualReps !== null && r.actualReps > 0);
+      computePRSetIds();
+      const prLifts = Array.from(new Set(rows.filter(r => prSetIds.has(r.id)).map(r => r.exercise)));
+      const hit = rows.filter(r => r.actualReps !== null && r.actualReps >= r.targetReps).length;
+      return {
+        days: new Set(logged.map(r => r.date)).size,
+        sets: logged.length,
+        hitPct: rows.length ? Math.round((hit / rows.length) * 100) : 0,
+        prLifts,
+        isDeload: rows.some(r => isRecordDeload(r))
+      };
+    }
+
+    function weekCardHtml(weekKey) {
+      const rc = getWeekRecap(weekKey);
+      const isThisWeek = weekKey === weekStartKey(getTodayString());
+      const { streak } = getStreak();
+      // Big number: the streak when this week counts toward it, otherwise the workouts done
+      const showStreak = isThisWeek && streak > 0;
+      const big = showStreak ? streak : rc.days;
+      const from = showStreak ? Math.max(0, streak - 1) : 0;
+      return `
+        <div class="celebrate-card">
+          <div class="celebrate-kicker${rc.isDeload ? ' amber' : ''}">${rc.isDeload ? 'DELOAD WEEK DONE' : 'WEEK COMPLETE'}</div>
+          <div class="celebrate-title">${fmtShortDate(weekKey)} – ${fmtShortDate(addDaysKey(weekKey, 6))}</div>
+          <div class="celebrate-num">
+            <div class="celebrate-ring"></div><div class="celebrate-ring d2"></div>
+            ${showStreak ? `<svg class="celebrate-flame" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="${FLAME_PATH}"/></svg>` : ''}
+            <div class="celebrate-big" data-count-from="${from}" data-count-to="${big}">${big}</div>
+            <div class="celebrate-unit">${showStreak ? `week streak` : `workout${big === 1 ? '' : 's'}`}</div>
+          </div>
+          <div class="celebrate-stats">
+            <div class="celebrate-stat"><div class="v">${rc.days}</div><div class="l">workouts</div></div>
+            <div class="celebrate-stat"><div class="v">${rc.sets}</div><div class="l">sets</div></div>
+            <div class="celebrate-stat"><div class="v">${rc.hitPct}%</div><div class="l">targets hit</div></div>
+            <div class="celebrate-stat"><div class="v${rc.prLifts.length ? ' green' : ''}">${rc.prLifts.length}</div><div class="l">PRs</div></div>
+          </div>
+          ${rc.prLifts.length ? `<div class="celebrate-prs">PR on <b>${rc.prLifts.map(escapeHTML).join('</b>, <b>')}</b></div>` : ''}
+          <div class="celebrate-hint">tap to close</div>
+        </div>`;
+    }
+
+    // Count the big number up from the old value (skipped with reduced motion)
+    function countUp(el) {
+      const from = Number(el.dataset.countFrom) || 0;
+      const to = Number(el.dataset.countTo) || 0;
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce || from >= to) { el.textContent = to; return; }
+      const dur = 700;
+      const start = performance.now();
+      const step = (now) => {
+        const p = Math.min(1, (now - start) / dur);
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(from + (to - from) * eased);
+        if (p < 1) requestAnimationFrame(step);
+      };
+      el.textContent = from;
+      requestAnimationFrame(step);
+    }
+
+    function showNextCelebration() {
+      const el = document.getElementById('celebrate-overlay');
+      const item = celebrationQueue.shift();
+      if (!el || !item) { celebrationOpen = false; return; }
+      const html = item.type === 'pr' ? prCardHtml(item.id) : weekCardHtml(item.week);
+      if (!html) { showNextCelebration(); return; }
+      celebrationOpen = true;
+      celebrationClosing = false;
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // drop the keyboard
+      el.innerHTML = html;
+      el.classList.remove('show');
+      el.style.display = 'flex';
+      void el.offsetWidth; // restart the entrance animation
+      el.classList.add('show');
+      const num = el.querySelector('[data-count-to]');
+      if (num) countUp(num);
+      clearTimeout(celebrationTimer);
+      if (item.type === 'pr') celebrationTimer = setTimeout(closeCelebration, PR_CARD_MS);
+    }
+
+    window.closeCelebration = () => {
+      const el = document.getElementById('celebrate-overlay');
+      if (!el || !celebrationOpen || celebrationClosing) return;
+      celebrationClosing = true;
+      clearTimeout(celebrationTimer);
+      el.classList.remove('show');
+      setTimeout(() => {
+        el.style.display = 'none';
+        el.innerHTML = '';
+        celebrationOpen = false;
+        showNextCelebration();
+      }, 200);
+    };
+
+    // Tap the streak badge: replay the most recent completed week
+    function openLastWeekRecap() {
+      const weeks = getCompletedWeeks();
+      if (!weeks.length) { showNotification('No fully logged week yet.'); return; }
+      celebrationQueue.push({ type: 'week', week: weeks[weeks.length - 1] });
+      if (!celebrationOpen) showNextCelebration();
+    }
+
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCelebration(); });
+
     function getPreviousNotes(exerciseName, currentDate) {
       const curDateObj = new Date(currentDate);
       const priorRows = records
@@ -1606,7 +1871,7 @@
         render();
       }
     };
-    
+
     function getExerciseWeightDelta(exerciseName, currentDate, currentWeight, currentTargetReps, isCurrentDeload = false) {
       // No delta badge on deload sessions
       if (isCurrentDeload) return 0;
@@ -1737,7 +2002,7 @@
                 '<div class="flex items-center gap-1.5">' +
                 prBadgeHtml(s.id) +
                 '<div class="flex items-center border border-zinc-800 rounded font-mono">' +
-                  '<button onclick="updateReps(\'' + s.id + '\', -1)" aria-label="One less rep" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">\u2212</button>' +
+                  '<button onclick="updateReps(\'' + s.id + '\', -1)" aria-label="One less rep" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100">−</button>' +
                   '<input ' +
                     'type="number" ' +
                     'inputmode="numeric" ' +
@@ -1827,7 +2092,7 @@
                 '<span class="text-[11px] font-mono text-zinc-500">' + g.sets.length + 's</span>' +
                 '<div class="flex items-center border border-zinc-800 rounded bg-zinc-900 overflow-hidden font-mono text-xs">' +
                   '<button onclick="addSetToExercise(\'' + escapeHTML(g.exercise) + '\', \'' + escapeHTML(g.workout) + '\')" title="Add set" class="px-2 py-0.5 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 border-r border-zinc-800 transition active:scale-95 touch-btn">+</button>' +
-                  '<button onclick="removeSetFromExercise(\'' + escapeHTML(g.exercise) + '\')" title="Remove set" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition active:scale-95 touch-btn">\u2212</button>' +
+                  '<button onclick="removeSetFromExercise(\'' + escapeHTML(g.exercise) + '\')" title="Remove set" class="px-2 py-0.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition active:scale-95 touch-btn">−</button>' +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -1850,9 +2115,9 @@
         return `
         <tr class="transition ${isSelectedDate ? 'bg-zinc-800/40 border-l-2 border-zinc-400' : 'hover:bg-zinc-900/40'}">
           <td class="py-1 px-1.5">
-            <input 
-              type="text" 
-              value="${escapeHTML(r.date.slice(5))}" 
+            <input
+              type="text"
+              value="${escapeHTML(r.date.slice(5))}"
               data-full="${escapeHTML(r.date)}"
               title="${escapeHTML(r.date)}"
               onfocus="this.value=this.dataset.full; this.select()"
@@ -1863,9 +2128,9 @@
           </td>
           <td class="py-1 px-1.5">
             <div class="flex items-center gap-1.5 min-w-[112px]">
-              <input 
-                type="text" 
-                value="${escapeHTML(r.exercise)}" 
+              <input
+                type="text"
+                value="${escapeHTML(r.exercise)}"
                 onfocus="this.select()"
                 onchange="updateRecordField('${r.id}', 'exercise', this.value)"
                 class="w-full bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 font-sans ${isSelectedDate ? 'text-zinc-100 font-medium' : 'text-zinc-200'} text-xs focus:outline-none"
@@ -1876,34 +2141,34 @@
             </div>
           </td>
           <td class="py-1 px-1.5 text-right">
-            <input 
-              type="number" 
+            <input
+              type="number"
               inputmode="decimal"
-              step="0.5" 
-              value="${r.weight}" 
+              step="0.5"
+              value="${r.weight}"
               onfocus="this.select()"
               onchange="updateRecordField('${r.id}', 'weight', this.value)"
               class="w-12 bg-transparent text-right font-mono text-[11px] focus:outline-none hover:border-b hover:border-zinc-700 focus:border-b focus:border-zinc-500 ${r.isIncreased ? 'text-emerald-400 font-medium' : 'text-zinc-200'}"
             />
           </td>
           <td class="py-1 px-1.5 text-center">
-            <input 
-              type="number" 
+            <input
+              type="number"
               inputmode="numeric"
               pattern="[0-9]*"
-              value="${r.targetReps}" 
+              value="${r.targetReps}"
               onfocus="this.select()"
               onchange="updateRecordField('${r.id}', 'targetReps', this.value)"
               class="w-8 bg-transparent text-center text-zinc-400 font-mono text-[11px] focus:outline-none hover:border-b hover:border-zinc-700 focus:border-b focus:border-zinc-500"
             />
           </td>
           <td class="py-1 px-1.5 text-center">
-            <input 
-              type="number" 
+            <input
+              type="number"
               inputmode="numeric"
               pattern="[0-9]*"
-              placeholder="-" 
-              value="${r.actualReps !== null ? r.actualReps : ''}" 
+              placeholder="-"
+              value="${r.actualReps !== null ? r.actualReps : ''}"
               onfocus="this.select()"
               onchange="updateRecordField('${r.id}', 'actualReps', this.value)"
               class="w-8 bg-transparent text-center font-mono text-[11px] focus:outline-none hover:border-b hover:border-zinc-700 focus:border-b focus:border-zinc-500 ${
@@ -1912,11 +2177,11 @@
             />
           </td>
           <td class="py-1 px-1.5 text-center">
-            <input 
-              type="number" 
+            <input
+              type="number"
               inputmode="numeric"
               pattern="[0-9]*"
-              value="${r.set}" 
+              value="${r.set}"
               onfocus="this.select()"
               onchange="updateRecordField('${r.id}', 'set', this.value)"
               class="w-6 bg-transparent text-center text-zinc-500 font-mono text-[11px] focus:outline-none hover:border-b hover:border-zinc-700 focus:border-b focus:border-zinc-500"
@@ -1924,9 +2189,9 @@
           </td>
           <td class="py-1 px-1.5">
             <div class="flex items-center gap-1 min-w-[80px]">
-              <input 
-                type="text" 
-                value="${escapeHTML(r.workout)}" 
+              <input
+                type="text"
+                value="${escapeHTML(r.workout)}"
                 onfocus="this.select()"
                 onchange="updateRecordField('${r.id}', 'workout', this.value)"
                 class="w-16 bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-500 text-zinc-400 font-mono text-[11px] focus:outline-none"
@@ -1940,9 +2205,9 @@
             </div>
           </td>
           <td class="py-1 px-1.5">
-            <input 
-              type="text" 
-              value="${escapeHTML(r.notes || '')}" 
+            <input
+              type="text"
+              value="${escapeHTML(r.notes || '')}"
               placeholder="Notes..."
               onfocus="this.select()"
               onchange="updateRecordField('${r.id}', 'notes', this.value)"
@@ -2683,9 +2948,9 @@
 
         const exercisesHtml = day.exercises.map((ex, eIdx) => `
           <div class="flex items-center justify-between px-3 py-2 text-xs font-mono group hover:bg-zinc-900/30 transition">
-            <input 
-              type="text" 
-              value="${escapeHTML(ex.exercise)}" 
+            <input
+              type="text"
+              value="${escapeHTML(ex.exercise)}"
               onfocus="this.select()"
               onchange="updateTemplateExercise(${dIdx}, ${eIdx}, 'exercise', this.value)"
               class="bg-transparent border-b border-transparent hover:border-zinc-800 focus:border-zinc-600 text-zinc-200 text-xs focus:outline-none flex-1 min-w-0 pr-2 placeholder-zinc-700"
@@ -2693,12 +2958,12 @@
             />
             <div class="flex items-center gap-2.5 flex-shrink-0">
               <div class="flex items-center gap-1 text-[11px] text-zinc-500">
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   inputmode="numeric"
-                  min="1" 
-                  max="10" 
-                  value="${ex.sets || 3}" 
+                  min="1"
+                  max="10"
+                  value="${ex.sets || 3}"
                   onfocus="this.select()"
                   onchange="updateTemplateExercise(${dIdx}, ${eIdx}, 'sets', this.value)"
                   class="w-7 bg-transparent text-right text-zinc-300 font-mono focus:outline-none border-b border-transparent hover:border-zinc-800 focus:border-zinc-600"
@@ -2708,26 +2973,26 @@
               <span class="text-zinc-800">·</span>
               <div class="flex items-center gap-1 text-[11px] text-zinc-500">
                 <span class="text-[10px] text-zinc-600">tgt</span>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   inputmode="numeric"
-                  min="1" 
-                  max="50" 
-                  value="${ex.targetReps || 10}" 
+                  min="1"
+                  max="50"
+                  value="${ex.targetReps || 10}"
                   onfocus="this.select()"
                   onchange="updateTemplateExercise(${dIdx}, ${eIdx}, 'targetReps', this.value)"
                   class="w-8 bg-transparent text-center text-zinc-300 font-mono focus:outline-none border-b border-transparent hover:border-zinc-800 focus:border-zinc-600"
                 />
               </div>
-              <button 
-                onclick="toggleTemplateHold(${dIdx}, ${eIdx})" 
-                title="${ex.hold ? 'Held: no automatic progression (tap to release)' : 'Hold weight (no automatic progression)'}" 
+              <button
+                onclick="toggleTemplateHold(${dIdx}, ${eIdx})"
+                title="${ex.hold ? 'Held: no automatic progression (tap to release)' : 'Hold weight (no automatic progression)'}"
                 aria-pressed="${ex.hold ? 'true' : 'false'}"
                 class="${ex.hold ? 'text-amber-400 bg-amber-950/60 border-amber-800/60' : 'text-zinc-700 hover:text-zinc-400 border-transparent'} border rounded p-0.5 transition touch-btn ml-1"
               >${LOCK_ICON_SVG}</button>
-              <button 
-                onclick="removeTemplateExercise(${dIdx}, ${eIdx})" 
-                title="Remove Movement" 
+              <button
+                onclick="removeTemplateExercise(${dIdx}, ${eIdx})"
+                title="Remove Movement"
                 class="text-zinc-700 hover:text-zinc-400 p-0.5 transition touch-btn ml-1"
               >
                 <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2743,17 +3008,17 @@
           <div class="bg-zinc-950 border border-zinc-800/80 rounded overflow-hidden">
             <div class="px-3 py-2 bg-zinc-900/60 border-b border-zinc-800/80 flex items-center justify-between">
               <div class="flex items-center gap-2.5">
-                <input 
-                  type="text" 
-                  value="${escapeHTML(day.workout)}" 
+                <input
+                  type="text"
+                  value="${escapeHTML(day.workout)}"
                   size="${Math.max(1, (day.workout || '').length)}"
                   onfocus="this.select()"
                   oninput="this.size = Math.max(1, this.value.length)"
                   onchange="updateTemplateDay(${dIdx}, 'workout', this.value)"
                   class="bg-transparent border-b border-transparent hover:border-zinc-800 focus:border-zinc-600 font-mono text-[10px] uppercase text-zinc-500 tracking-wider focus:text-zinc-300 focus:outline-none"
                 />
-                <select 
-                  onchange="updateTemplateDay(${dIdx}, 'dayIndex', this.value)" 
+                <select
+                  onchange="updateTemplateDay(${dIdx}, 'dayIndex', this.value)"
                   class="bg-zinc-900 border border-zinc-800/80 text-[10px] font-mono text-zinc-400 rounded px-1 py-0.5 focus:outline-none focus:border-zinc-700"
                 >
                   ${offsetOptions}
@@ -2762,16 +3027,16 @@
               <div class="flex items-center gap-2">
                 <span class="text-[11px] font-mono text-zinc-500">${day.exercises.length} exercises</span>
                 <div class="flex items-center border border-zinc-800 rounded bg-zinc-900 overflow-hidden font-mono text-xs">
-                  <button 
-                    onclick="addTemplateExercise(${dIdx})" 
-                    title="Add exercise" 
+                  <button
+                    onclick="addTemplateExercise(${dIdx})"
+                    title="Add exercise"
                     class="px-2 py-0.5 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 border-r border-zinc-800 transition active:scale-95 touch-btn"
                   >
                     +
                   </button>
-                  <button 
-                    onclick="removeTemplateDay(${dIdx})" 
-                    title="Delete day" 
+                  <button
+                    onclick="removeTemplateDay(${dIdx})"
+                    title="Delete day"
                     class="px-2 py-0.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition active:scale-95 touch-btn"
                   >
                     -
@@ -2843,6 +3108,10 @@
     document.getElementById('btn-undo').onclick = undoLastAction;
     document.getElementById('btn-export').onclick = exportCSV;
     document.getElementById('search-input').oninput = (e) => { searchFilter = e.target.value; renderSheetView(); };
+    document.getElementById('weekly-set-badge').onclick = openLastWeekRecap;
+
+    // First run with celebrations: everything already logged counts as celebrated
+    if (!celebratedPRs || !celebratedWeeks) seedCelebrations();
 
     render();
   </script>
