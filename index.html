@@ -1692,12 +1692,12 @@
       };
     }
 
-    function weekCardHtml(weekKey) {
+    function weekCardHtml(weekKey, forceStreak = false) {
       const rc = getWeekRecap(weekKey);
       const isThisWeek = weekKey === weekStartKey(getTodayString());
       const { streak } = getStreak();
-      // Big number: the streak when this week counts toward it, otherwise the workouts done
-      const showStreak = isThisWeek && streak > 0;
+      // Big number: the streak when this week counts toward it (or when opened from the flame), otherwise the workouts done
+      const showStreak = forceStreak || (isThisWeek && streak > 0);
       const big = showStreak ? streak : rc.days;
       const from = showStreak ? Math.max(0, streak - 1) : 0;
       return `
@@ -1743,7 +1743,7 @@
       const el = document.getElementById('celebrate-overlay');
       const item = celebrationQueue.shift();
       if (!el || !item) { celebrationOpen = false; return; }
-      const html = item.type === 'pr' ? prCardHtml(item.id) : weekCardHtml(item.week);
+      const html = item.type === 'pr' ? prCardHtml(item.id) : weekCardHtml(item.week, !!item.streak);
       if (!html) { showNextCelebration(); return; }
       celebrationOpen = true;
       celebrationClosing = false;
@@ -1785,7 +1785,7 @@
     function openLastWeekRecap() {
       const weeks = getCompletedWeeks();
       if (!weeks.length) { showNotification('No fully logged week yet.'); return; }
-      celebrationQueue.push({ type: 'week', week: weeks[weeks.length - 1] });
+      celebrationQueue.push({ type: 'week', week: weeks[weeks.length - 1], streak: true });
       if (!celebrationOpen) showNextCelebration();
     }
 
