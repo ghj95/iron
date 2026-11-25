@@ -570,10 +570,10 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
 
-    // ===== Streak: weeks in a row (Mon-Sun) with 5+ workout days =====
+    // ===== Streak: weeks in a row (Mon-Sun) with 3+ workout days =====
     // A workout day = any day with at least one set logged. Deload weeks count like any other.
     // The current week can only add to the streak; it never breaks it until the week is over.
-    const STREAK_WORKOUTS_PER_WEEK = 5;
+    const STREAK_WORKOUTS_PER_WEEK = 3;
     function weekStartKey(dateKey) {
       const d = new Date(dateKey + 'T00:00:00');
       const back = (d.getDay() + 6) % 7; // days since Monday
